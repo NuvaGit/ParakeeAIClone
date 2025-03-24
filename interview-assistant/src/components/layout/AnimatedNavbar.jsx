@@ -2,7 +2,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
-import { AnimatedLogo, Tooltip, NotificationBadge } from '../ui/AnimatedComponents';
+import { AnimatedLogo, NotificationBadge } from '../ui/AnimatedComponents';
 
 const AnimatedNavbar = () => {
   const { currentUser, logout, userProfile } = useContext(AuthContext);
