@@ -1,6 +1,6 @@
 import React from 'react';
-import Navbar from '../components/layout/Navbar';
-import ProfileSetup from '../components/auth/ProfileSetup';
+import Navbar from "../layout/Navbar";
+import ProfileSetup from "../auth/ProfileSetup";
 
 const Profile = ({ setup = false }) => {
   return (

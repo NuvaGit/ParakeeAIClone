@@ -1,12 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { TranscriptionProvider } from './contexts/TranscriptionContext';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Home from './pages/Home';
-import Profile from './pages/Profile';
-import InterviewRoom from './pages/InterviewRoom';
+import { AuthProvider } from "./components/contexts/AuthContext";
+import { TranscriptionProvider } from "./components/contexts/TranscriptionContext";
+import Login from "./components/pages/Login";
+import Register from "./components/pages/Register";
+import Home from "./components/pages/Home";
+import Profile from "./components/pages/Profile";
+import InterviewRoom from "./components/pages/InterviewRoom";
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {

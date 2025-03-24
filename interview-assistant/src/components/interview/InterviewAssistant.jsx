@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import useSpeechRecognition from '../../hooks/useSpeechRecognition';
-import useAIResponses from '../../hooks/useAIResponses';
+import useSpeechRecognition from "../hooks/useSpeechRecognition";
+import useAIResponses from "../hooks/useAIResponses";   
 import TranscriptionPanel from './TranscriptionPanel';
 import ResponseGenerator from './ResponseGenerator';
 

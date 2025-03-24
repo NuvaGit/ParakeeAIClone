@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
-import Navbar from '../components/layout/Navbar';
+import Navbar from "../layout/Navbar";
 
 const Home = () => {
   const { currentUser } = useContext(AuthContext);

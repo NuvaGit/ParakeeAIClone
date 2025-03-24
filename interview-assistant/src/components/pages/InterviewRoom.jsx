@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Navbar from '../components/layout/Navbar';
-import InterviewAssistant from '../components/interview/InterviewAssistant';
+import Navbar from "../layout/Navbar";
+import InterviewAssistant from "../interview/InterviewAssistant";
 
 const InterviewRoom = () => {
   const [isFullScreen, setIsFullScreen] = useState(false);
