@@ -13,7 +13,7 @@ export default {
             200: '#99c7ff',
             300: '#66abff',
             400: '#338fff',
-            500: '#0073ff', // Primary brand color
+            500: '#0073ff', 
             600: '#005cd9',
             700: '#0044b3',
             800: '#002d8c',
@@ -25,7 +25,7 @@ export default {
             200: '#c3dffd',
             300: '#a5cffc',
             400: '#87bffb',
-            500: '#69affa', // Secondary brand color
+            500: '#69affa', 
             600: '#4a8ce6',
             700: '#2c6ad2',
             800: '#1d48bd',
@@ -37,7 +37,7 @@ export default {
             200: '#f3d3ff',
             300: '#ecbcff',
             400: '#e6a6ff',
-            500: '#e090ff', // Accent color for highlights
+            500: '#e090ff', 
             600: '#c26fec',
             700: '#a34fd9',
             800: '#8430c6',
