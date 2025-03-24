@@ -13,7 +13,7 @@ import {
   WaveAnimation
 } from '../ui/AnimatedComponents';
 
-const EnhancedHome = () => {
+const Home = () => {
   const { currentUser } = useContext(AuthContext);
 
   const features = [
@@ -195,6 +195,34 @@ const EnhancedHome = () => {
                       <div className="w-4 h-4 rounded-full bg-primary-500"></div>
                     </div>
                   </div>
+                  <div className="flex-1 mt-4 md:mt-0 md:pl-12">
+                    <img 
+                      src="https://ui-avatars.com/api/?name=Profile&background=e6f1ff&color=0073ff" 
+                      alt="Profile Setup" 
+                      className="rounded-lg shadow-md w-full md:max-w-xs mx-auto"
+                    />
+                  </div>
+                </div>
+              </AnimatedSection>
+              
+              {/* Step 2 */}
+              <AnimatedSection delay={200}>
+                <div className="flex flex-col md:flex-row mb-16">
+                  <div className="flex-1 md:text-right md:pr-12 md:order-2">
+                    <div className="mb-4 md:hidden">
+                      <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary-500 text-white font-semibold">2</span>
+                    </div>
+                    <img 
+                      src="https://ui-avatars.com/api/?name=Transcription&background=e6f1ff&color=0073ff" 
+                      alt="Interview Interface" 
+                      className="rounded-lg shadow-md w-full md:max-w-xs mx-auto"
+                    />
+                  </div>
+                  <div className="hidden md:flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-primary-100 border-4 border-white flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full bg-primary-500"></div>
+                    </div>
+                  </div>
                   <div className="flex-1 mt-4 md:mt-0 md:order-1">
                     <div className="mb-4 md:text-left">
                       <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary-500 text-white font-semibold md:ml-0">2</span>
@@ -324,32 +352,4 @@ const EnhancedHome = () => {
   );
 };
 
-export default EnhancedHome; justify-center">
-                      <div className="w-4 h-4 rounded-full bg-primary-500"></div>
-                    </div>
-                  </div>
-                  <div className="flex-1 mt-4 md:mt-0 md:pl-12">
-                    <img 
-                      src="https://ui-avatars.com/api/?name=Profile&background=e6f1ff&color=0073ff" 
-                      alt="Profile Setup" 
-                      className="rounded-lg shadow-md w-full md:max-w-xs mx-auto"
-                    />
-                  </div>
-                </div>
-              </AnimatedSection>
-              
-              {/* Step 2 */}
-              <AnimatedSection delay={200}>
-                <div className="flex flex-col md:flex-row mb-16">
-                  <div className="flex-1 md:text-right md:pr-12 md:order-2">
-                    <div className="mb-4 md:hidden">
-                      <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary-500 text-white font-semibold">2</span>
-                    </div>
-                    <img 
-                      src="https://ui-avatars.com/api/?name=Transcription&background=e6f1ff&color=0073ff" 
-                      alt="Interview Interface" 
-                      className="rounded-lg shadow-md w-full md:max-w-xs mx-auto"
-                    />
-                  </div>
-                  <div className="hidden md:flex items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-primary-100 border-4 border-white flex items-center
+export default Home;
