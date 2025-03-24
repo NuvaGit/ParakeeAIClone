@@ -1,12 +1,11 @@
-// src/components/ui/LoadingSpinner.jsx
 import React from 'react';
 
 const variants = {
   dots: ({ size, color }) => (
     <div className="flex justify-center items-center space-x-2">
       <div className={`${size} rounded-full ${color} animate-bounce`}></div>
-      <div className={`${size} rounded-full ${color} animate-bounce delay-75`}></div>
-      <div className={`${size} rounded-full ${color} animate-bounce delay-150`}></div>
+      <div className={`${size} rounded-full ${color} animate-bounce animate-delay-100`}></div>
+      <div className={`${size} rounded-full ${color} animate-bounce animate-delay-200`}></div>
     </div>
   ),
   
