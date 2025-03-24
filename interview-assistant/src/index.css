@@ -21,7 +21,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-  @apply bg-gray-50 text-gray-900;
+  @apply bg-[#ffffff] text-zinc-900;
 }
 
 /* Modern scrollbar */
@@ -31,15 +31,15 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 rounded-full;
+  @apply bg-zinc-100 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full transition-colors;
+  @apply bg-zinc-300 rounded-full transition-colors;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400;
+  @apply bg-zinc-400;
 }
 
 /* Custom utilities */
@@ -48,28 +48,8 @@ body {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-500 to-accent-500;
   }
   
-  .animate-delay-100 {
-    animation-delay: 100ms;
-  }
-  
-  .animate-delay-200 {
-    animation-delay: 200ms;
-  }
-  
-  .animate-delay-300 {
-    animation-delay: 300ms;
-  }
-  
-  .animate-delay-400 {
-    animation-delay: 400ms;
-  }
-  
-  .animate-delay-500 {
-    animation-delay: 500ms;
-  }
-  
   .glass-effect {
-    @apply bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg;
+    @apply bg-[#ffffff] bg-opacity-10 backdrop-blur-lg;
   }
   
   .gradient-border {
@@ -103,19 +83,19 @@ body {
 /* Component classes */
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all duration-300;
   }
   
   .btn-primary {
-    @apply btn bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500;
+    @apply btn bg-primary-500 text-[#ffffff] hover:bg-primary-600;
   }
   
   .btn-secondary {
-    @apply btn bg-secondary-500 text-white hover:bg-secondary-600 focus:ring-secondary-500;
+    @apply btn bg-secondary-500 text-[#ffffff] hover:bg-secondary-600;
   }
   
   .btn-accent {
-    @apply btn bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-500;
+    @apply btn bg-accent-500 text-[#ffffff] hover:bg-accent-600;
   }
   
   .btn-outline {
@@ -123,7 +103,7 @@ body {
   }
   
   .card {
-    @apply bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl;
+    @apply bg-[#ffffff] rounded-xl overflow-hidden transition-all duration-300;
   }
   
   .card-hover {
@@ -131,7 +111,7 @@ body {
   }
   
   .form-input {
-    @apply w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary-300 focus:border-transparent transition duration-200;
+    @apply w-full px-4 py-3 rounded-lg border border-zinc-300 transition duration-200;
   }
   
   .badge {
@@ -139,7 +119,7 @@ body {
   }
   
   .nav-link {
-    @apply relative px-3 py-2 text-gray-700 hover:text-primary-600 transition-colors;
+    @apply relative px-3 py-2 text-zinc-700 hover:text-primary-600 transition-colors;
   }
   
   .nav-link::after {
@@ -164,7 +144,7 @@ body {
   
   /* Animated blob */
   .blob {
-    @apply absolute bg-gradient-to-r from-primary-400/30 to-accent-400/30 animate-morph;
+    @apply absolute bg-gradient-to-r from-primary-400/30 to-accent-400/30;
     filter: blur(40px);
   }
   
@@ -177,4 +157,4 @@ body {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
   }
-}
+} 

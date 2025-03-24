@@ -4,8 +4,8 @@ export const AnimatedBackground = ({ children }) => {
   return (
     <div className="relative overflow-hidden">
       <div className="blob w-96 h-96 -top-20 -left-20 opacity-40"></div>
-      <div className="blob w-96 h-96 top-1/3 right-0 opacity-30 animate-delay-200"></div>
-      <div className="blob w-64 h-64 bottom-0 left-1/4 opacity-20 animate-delay-400"></div>
+      <div className="blob w-96 h-96 top-1/3 right-0 opacity-30"></div>
+      <div className="blob w-64 h-64 bottom-0 left-1/4 opacity-20"></div>
       <div className="pointer-events-none absolute inset-0 bg-grid opacity-[0.03]"></div>
       <div className="relative z-10">{children}</div>
     </div>
@@ -66,14 +66,14 @@ export const AnimatedButton = ({
   animated = true,
   ...props
 }) => {
-  const baseClasses = "relative overflow-hidden inline-flex items-center justify-center rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all";
+  const baseClasses = "relative overflow-hidden inline-flex items-center justify-center rounded-lg font-medium transition-all";
   
   const variantClasses = {
-    primary: "bg-primary-500 hover:bg-primary-600 text-white focus:ring-primary-500",
-    secondary: "bg-secondary-500 hover:bg-secondary-600 text-white focus:ring-secondary-500",
-    accent: "bg-accent-500 hover:bg-accent-600 text-white focus:ring-accent-500",
+    primary: "bg-primary-500 hover:bg-primary-600 text-white",
+    secondary: "bg-secondary-500 hover:bg-secondary-600 text-white",
+    accent: "bg-accent-500 hover:bg-accent-600 text-white",
     outline: "bg-transparent border-2 border-primary-500 text-primary-500 hover:bg-primary-50",
-    ghost: "bg-transparent hover:bg-gray-100 text-gray-700",
+    ghost: "bg-transparent hover:bg-zinc-100 text-zinc-700",
   };
   
   const sizeClasses = {

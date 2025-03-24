@@ -1,4 +1,7 @@
 /** @type {import('tailwindcss').Config} */
+import tailwindTypography from '@tailwindcss/typography';
+import autoprefixer from 'autoprefixer';
+
 export default {
   content: [
     "./index.html",
@@ -64,20 +67,32 @@ export default {
           800: '#1f2937',
           900: '#111827',
         },
+        zinc: {
+          50: '#fafafa',
+          100: '#f4f4f5',
+          200: '#e4e4e7',
+          300: '#d4d4d8',
+          400: '#a1a1aa',
+          500: '#71717a',
+          600: '#52525b',
+          700: '#3f3f46',
+          800: '#27272a',
+          900: '#18181b',
+        },
       },
       animation: {
-        'float': 'float 3s ease-in-out infinite',
-        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'slide-up': 'slideUp 0.5s ease-out forwards',
-        'slide-in-right': 'slideInRight 0.6s ease-out forwards',
-        'slide-in-left': 'slideInLeft 0.6s ease-out forwards',
-        'fade-in': 'fadeIn 0.5s ease-out forwards',
-        'bounce-in': 'bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-        'wave': 'wave 2.5s ease-in-out infinite',
-        'typing': 'typing 1.5s steps(20, end) infinite',
-        'blink-caret': 'blinkCaret 0.75s step-end infinite',
-        'morph': 'morph 8s ease-in-out infinite',
-        'gradient-shift': 'gradientShift 8s ease infinite',
+        float: 'float 3s ease-in-out infinite',
+        pulseSlow: 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        slideUp: 'slideUp 0.5s ease-out forwards',
+        slideInRight: 'slideInRight 0.6s ease-out forwards',
+        slideInLeft: 'slideInLeft 0.6s ease-out forwards',
+        fadeIn: 'fadeIn 0.5s ease-out forwards',
+        bounceIn: 'bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+        wave: 'wave 2.5s ease-in-out infinite',
+        typing: 'typing 1.5s steps(20, end) infinite',
+        blinkCaret: 'blinkCaret 0.75s step-end infinite',
+        morph: 'morph 8s ease-in-out infinite',
+        gradientShift: 'gradientShift 8s ease infinite',
       },
       keyframes: {
         float: {
@@ -119,7 +134,7 @@ export default {
           '0%': { width: '0' },
           '50%': { width: '100%' },
           '55%': { width: '100%' },
-          '100%': { width: '0' }
+          '100%': { width: '0' },
         },
         blinkCaret: {
           '0%, 100%': { borderColor: 'transparent' },
@@ -139,17 +154,18 @@ export default {
       },
       boxShadow: {
         glow: '0 0 15px rgba(0, 115, 255, 0.5)',
-        'accent-glow': '0 0 20px rgba(224, 144, 255, 0.6)',
+        accentGlow: '0 0 20px rgba(224, 144, 255, 0.6)',
       },
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'gradient-shine': 'linear-gradient(45deg, transparent 25%, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.1) 50%, transparent 50%, transparent 75%, rgba(255, 255, 255, 0.1) 75%, rgba(255, 255, 255, 0.1))',
+        gradientRadial: 'radial-gradient(var(--tw-gradient-stops))',
+        gradientConic: 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+        gradientShine: 'linear-gradient(45deg, transparent 25%, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.1) 50%, transparent 50%, transparent 75%, rgba(255, 255, 255, 0.1) 75%, rgba(255, 255, 255, 0.1))',
       },
       fontFamily: {
         sans: ['Inter var', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
     },
   },
-  plugins: [],
-}
+  plugins: [  
+  ],
+};
