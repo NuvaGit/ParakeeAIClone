@@ -51,63 +51,56 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Register with email & password
-  const register = async (email, password, displayName) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Create user profile in Firestore
-      await setDoc(doc(db, 'users', user.uid), {
-        displayName,
-        email,
-        photoURL: '',
-        createdAt: new Date().toISOString(),
-        resumeData: {},
-        jobHistory: [],
-        interviewHistory: []
-      });
-      
-      return user;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  // Login with email & password
-  const login = async (email, password) => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      return userCredential.user;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  // Login with Google
-  const loginWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // Check if user profile exists, create if not
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
+  const register = (email, password, displayName) => {
+    return createUserWithEmailAndPassword(auth, email, password)
+      .then(async (userCredential) => {
+        const user = userCredential.user;
+        
+        // Create user profile in Firestore
         await setDoc(doc(db, 'users', user.uid), {
-          displayName: user.displayName || '',
-          email: user.email,
-          photoURL: user.photoURL || '',
+          displayName,
+          email,
+          photoURL: '',
           createdAt: new Date().toISOString(),
           resumeData: {},
           jobHistory: [],
           interviewHistory: []
         });
-      }
-      
-      return user;
-    } catch (error) {
-      throw error;
-    }
+        
+        return user;
+      });
+  };
+
+  // Login with email & password
+  const login = (email, password) => {
+    return signInWithEmailAndPassword(auth, email, password)
+      .then(userCredential => userCredential.user);
+  };
+
+  // Login with Google
+  const loginWithGoogle = () => {
+    const provider = new GoogleAuthProvider();
+    
+    return signInWithPopup(auth, provider)
+      .then(async (result) => {
+        const user = result.user;
+        
+        // Check if user profile exists, create if not
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (!userDoc.exists()) {
+          await setDoc(doc(db, 'users', user.uid), {
+            displayName: user.displayName || '',
+            email: user.email,
+            photoURL: user.photoURL || '',
+            createdAt: new Date().toISOString(),
+            resumeData: {},
+            jobHistory: [],
+            interviewHistory: []
+          });
+        }
+        
+        return user;
+      });
   };
 
   // Logout
@@ -116,15 +109,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Update user profile
-  const updateProfile = async (profileData) => {
-    if (!currentUser) return;
+  const updateProfile = (profileData) => {
+    if (!currentUser) return Promise.reject(new Error('No user is logged in'));
     
-    try {
-      await setDoc(doc(db, 'users', currentUser.uid), profileData, { merge: true });
-      setUserProfile({...userProfile, ...profileData});
-    } catch (error) {
-      throw error;
-    }
+    return setDoc(doc(db, 'users', currentUser.uid), profileData, { merge: true })
+      .then(() => {
+        setUserProfile({...userProfile, ...profileData});
+        return userProfile;
+      });
   };
 
   const value = {

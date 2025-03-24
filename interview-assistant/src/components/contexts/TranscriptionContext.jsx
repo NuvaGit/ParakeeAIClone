@@ -153,3 +153,4 @@ export const TranscriptionProvider = ({ children }) => {
       {children}
     </TranscriptionContext.Provider>
   );
+}
