@@ -3,7 +3,8 @@ import useSpeechRecognition from "../hooks/useSpeechRecognition";
 import useAIResponses from "../hooks/useAIResponses";   
 import TranscriptionPanel from './TranscriptionPanel';
 import ResponseGenerator from './ResponseGenerator';
-import "@/assets/css/interview.css";
+import "/src/assets/css/interview.css";
+
 const InterviewAssistant = () => {
   const {
     isListening,

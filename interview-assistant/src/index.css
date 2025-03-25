@@ -5,7 +5,7 @@
 @import './assets/css/modern-styles.css';
 
 /* Import page-specific styles */
-@import './styles/home.css';
-@import './styles/auth.css';
-@import './styles/interview.css';
-@import './styles/interview-room.css';
+@import './assets/css/home.css';
+@import './assets/css/auth.css';
+@import './assets/css/interview.css';
+@import './assets/css/interview-room.css';
