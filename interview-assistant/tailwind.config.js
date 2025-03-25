@@ -1,7 +1,4 @@
 /** @type {import('tailwindcss').Config} */
-import tailwindTypography from '@tailwindcss/typography';
-import autoprefixer from 'autoprefixer';
-
 export default {
   content: [
     "./index.html",
@@ -166,6 +163,7 @@ export default {
       },
     },
   },
-  plugins: [  
+  plugins: [
+    require('@tailwindcss/postcss'),
   ],
 };
