@@ -66,4 +66,4 @@ const TranscriptionPanel = ({ transcript, interimTranscript, isListening, histor
   );
 };
 
-export default TranscriptionPanel;
+export default TranscriptionPanel;Register
