@@ -1,5 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { functions } from '../../firebase/config';
 
 export const generateAIResponse = async (question, userContext) => {
   try {
