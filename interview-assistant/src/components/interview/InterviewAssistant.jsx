@@ -3,7 +3,7 @@ import useSpeechRecognition from "../hooks/useSpeechRecognition";
 import useAIResponses from "../hooks/useAIResponses";   
 import TranscriptionPanel from './TranscriptionPanel';
 import ResponseGenerator from './ResponseGenerator';
-
+import "@/assets/css/interview.css";
 const InterviewAssistant = () => {
   const {
     isListening,
@@ -106,65 +106,171 @@ const InterviewAssistant = () => {
     }
   }, [isDragging]);
   
-  const floatingStyles = isFloating ? {
-    position: 'fixed',
-    left: `${position.x}px`,
-    top: `${position.y}px`,
-    zIndex: 1000,
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
-  } : {};
-  
   return (
     <div 
       ref={assistantRef}
-      className={`bg-white rounded-lg ${isFloating ? 'w-96' : 'w-full max-w-5xl mx-auto'}`}
-      style={floatingStyles}
+      className={`ia-assistant-container ${isFloating ? 'ia-floating' : 'mx-auto'}`}
+      style={isFloating ? {left: `${position.x}px`, top: `${position.y}px`} : {}}
       onMouseDown={handleMouseDown}
     >
-      <div className="p-4 bg-blue-500 text-white rounded-t-lg flex justify-between items-center cursor-move">
-        <h2 className="text-lg font-semibold">Interview Assistant</h2>
-        <div className="flex space-x-2">
+      <div className="ia-assistant-header">
+        <h2 className="ia-assistant-title">Interview Assistant</h2>
+        <div className="ia-assistant-controls">
           <button 
             onClick={() => setIsFloating(!isFloating)}
-            className="p-1 rounded hover:bg-blue-600"
+            className="ia-control-btn"
             title={isFloating ? "Dock" : "Float"}
           >
-            {isFloating ? "📌" : "🔘"}
+            <i className={`fas ${isFloating ? "fa-thumbtack" : "fa-external-link-alt"}`}></i>
           </button>
           <button
             onClick={isListening ? stopListening : startListening}
-            className={`p-1 rounded ${isListening ? 'bg-red-500 hover:bg-red-600' : 'hover:bg-blue-600'}`}
+            className={`ia-control-btn ${isListening ? 'active' : ''}`}
             title={isListening ? "Stop Listening" : "Start Listening"}
           >
-            {isListening ? "🛑" : "🎤"}
+            <i className={`fas ${isListening ? "fa-stop" : "fa-microphone"}`}></i>
           </button>
         </div>
       </div>
       
-      <div className={`p-4 ${isFloating ? 'max-h-96 overflow-y-auto' : ''}`}>
+      <div className="ia-assistant-body">
         {(transcriptionError || responseError) && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+          <div className="alert alert-danger mb-3">
+            <i className="fas fa-exclamation-triangle me-2"></i>
             {transcriptionError || responseError}
           </div>
         )}
         
-        <TranscriptionPanel 
-          transcript={transcript}
-          interimTranscript={interimTranscript}
-          isListening={isListening}
-          history={transcriptionHistory}
-          compact={isFloating}
-        />
+        <div className="ia-transcription">
+          <h3 className="ia-transcription-title">Transcription</h3>
+          
+          {transcriptionHistory.length > 0 && (
+            <div className="mb-3">
+              <h4 className="small fw-bold mb-2 text-muted">Conversation History:</h4>
+              <div className="d-flex flex-column gap-2">
+                {transcriptionHistory.map((item) => (
+                  <div 
+                    key={item.id} 
+                    className={`p-3 rounded ${
+                      item.type === 'question' 
+                        ? 'bg-primary-50 border-start border-4 border-primary' 
+                        : 'bg-secondary-50 border-start border-4 border-secondary'
+                    }`}
+                  >
+                    <div className="small text-muted mb-1">
+                      {item.type === 'question' ? 'Interviewer' : 'AI Assistant'} • {
+                        new Date(item.timestamp).toLocaleTimeString()
+                      }
+                    </div>
+                    <div>{item.text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {(transcript || interimTranscript) && (
+            <div className="mb-3">
+              <h4 className="small fw-bold mb-2 text-muted">Live Transcription:</h4>
+              <div className="ia-transcription-content">
+                <span>{transcript}</span>
+                {interimTranscript && (
+                  <span className="text-muted">{interimTranscript}</span>
+                )}
+                {isListening && !interimTranscript && (
+                  <span className="ia-listening-indicator"></span>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {!isListening && !transcript && !interimTranscript && transcriptionHistory.length === 0 && (
+            <div className="text-center py-4 text-muted">
+              <i className="fas fa-microphone-slash mb-2 fa-2x"></i>
+              <p>Press the microphone button or Alt+S to start listening.</p>
+            </div>
+          )}
+        </div>
         
-        <ResponseGenerator 
-          currentResponse={currentResponse}
-          setCurrentResponse={setCurrentResponse}
-          loading={responseLoading}
-          compact={isFloating}
-        />
+        <div className="ia-response">
+          <div className="ia-response-title">
+            <h3>AI Response</h3>
+            <div className="ia-response-actions">
+              {currentResponse && !responseLoading && (
+                <>
+                  <button
+                    onClick={() => {
+                      // Here you would implement the actual speech functionality
+                      // This is just a placeholder for a real speech API
+                      if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(currentResponse);
+                        speechSynthesis.speak(utterance);
+                      }
+                    }}
+                    className="btn btn-sm btn-outline-secondary"
+                    title="Speak response"
+                  >
+                    <i className="fas fa-volume-up me-1"></i>
+                    Speak
+                  </button>
+                  <button
+                    onClick={() => setCurrentResponse('')}
+                    className="btn btn-sm btn-outline-secondary"
+                    title="Edit response"
+                  >
+                    <i className="fas fa-edit me-1"></i>
+                    Edit
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          
+          {responseLoading ? (
+            <div className="ia-response-loading">
+              <div className="spinner">
+                <div></div>
+                <div></div>
+                <div></div>
+              </div>
+              <p>Generating response...</p>
+            </div>
+          ) : currentResponse ? (
+            <div className="ia-response-content">
+              {currentResponse}
+            </div>
+          ) : (
+            <div className="ia-response-empty">
+              <i className="fas fa-comment-dots mb-2"></i>
+              <p>Waiting for interview questions...</p>
+            </div>
+          )}
+          
+          {currentResponse && (
+            <div className="ia-response-footer">
+              <p>
+                <i className="fas fa-info-circle me-1"></i>
+                This is an AI-generated response. You can edit it before speaking.
+              </p>
+            </div>
+          )}
+        </div>
         
-        <div className="mt-4 text-xs text-gray-500">
-          <p>Keyboard shortcuts: Alt+S (Toggle Speech), Alt+F (Toggle Float), Alt+C (Clear)</p>
+        <div className="ia-keyboard-shortcuts">
+          <div className="d-flex justify-content-between">
+            <div className="ia-shortcut">
+              <kbd>Alt</kbd> + <kbd>S</kbd>
+              <span>Toggle Speech</span>
+            </div>
+            <div className="ia-shortcut">
+              <kbd>Alt</kbd> + <kbd>F</kbd>
+              <span>Toggle Float</span>
+            </div>
+            <div className="ia-shortcut">
+              <kbd>Alt</kbd> + <kbd>C</kbd>
+              <span>Clear</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,11 +1,24 @@
-import React, { useContext, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useContext, useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 
 const Navbar = () => {
   const { currentUser, logout } = useContext(AuthContext);
+  const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Listen for scroll events to change navbar appearance
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -16,86 +29,128 @@ const Navbar = () => {
     }
   };
 
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
+
   return (
-    <nav className="bg-white shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex-shrink-0 flex items-center">
-              <Link to="/" className="text-blue-600 font-bold text-xl">InterviewAssist</Link>
-            </div>
-            <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <Link
-                to="/"
-                className="border-transparent text-gray-500 hover:border-blue-500 hover:text-blue-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-              >
-                Home
-              </Link>
+    <nav className={`navbar ${isScrolled ? 'navbar-scrolled' : ''}`}>
+      <div className="container">
+        <div className="d-flex justify-content-between align-items-center">
+          {/* Logo and desktop navigation */}
+          <div className="d-flex align-items-center">
+            <Link to="/" className="navbar-brand">
+              <span className="text-gradient">InterviewAssist</span>
+            </Link>
+            
+            {/* Desktop navigation links */}
+            <ul className="navbar-nav">
+              <li className="nav-item">
+                <Link
+                  to="/"
+                  className={`nav-link ${isActive('/') ? 'active' : ''}`}
+                >
+                  Home
+                </Link>
+              </li>
+              
               {currentUser && (
                 <>
-                  <Link
-                    to="/interview"
-                    className="border-transparent text-gray-500 hover:border-blue-500 hover:text-blue-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                  >
-                    Interview Room
-                  </Link>
-                  <Link
-                    to="/profile"
-                    className="border-transparent text-gray-500 hover:border-blue-500 hover:text-blue-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                  >
-                    Profile
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="hidden sm:ml-6 sm:flex sm:items-center">
-            {currentUser ? (
-              <div className="ml-3 relative">
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-blue-300"
-                >
-                  <img
-                    className="h-8 w-8 rounded-full"
-                    src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${currentUser.displayName || 'User'}&background=0D8ABC&color=fff`}
-                    alt="Profile"
-                  />
-                </button>
-                
-                {isMenuOpen && (
-                  <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                  <li className="nav-item">
+                    <Link
+                      to="/interview"
+                      className={`nav-link ${isActive('/interview') ? 'active' : ''}`}
+                    >
+                      Interview Room
+                    </Link>
+                  </li>
+                  
+                  <li className="nav-item">
                     <Link
                       to="/profile"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setIsMenuOpen(false)}
+                      className={`nav-link ${isActive('/profile') ? 'active' : ''}`}
                     >
-                      Your Profile
+                      Profile
                     </Link>
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        handleLogout();
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      Sign out
-                    </button>
+                  </li>
+                </>
+              )}
+            </ul>
+          </div>
+          
+          {/* Desktop right side - login/signup or profile */}
+          <div className="d-flex align-items-center">
+            {currentUser ? (
+              <div className="relative">
+                <button 
+                  className="d-flex align-items-center gap-2 btn btn-sm"
+                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                >
+                  <img
+                    className="h-10 w-10 rounded-full"
+                    src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || 'User')}&background=5e60ce&color=fff`}
+                    alt="Profile"
+                    style={{ width: '32px', height: '32px', borderRadius: '50%' }}
+                  />
+                  <span>{currentUser.displayName?.split(' ')[0] || 'User'}</span>
+                  <i className={`fas fa-chevron-down ${profileDropdownOpen ? 'fa-rotate-180' : ''}`}></i>
+                </button>
+                
+                {profileDropdownOpen && (
+                  <div className="card" style={{ position: 'absolute', right: 0, top: '100%', minWidth: '200px', marginTop: '0.5rem', zIndex: 1000 }}>
+                    <div className="card-body p-3">
+                      <div className="mb-2 pb-2" style={{ borderBottom: '1px solid var(--gray-200)' }}>
+                        <p className="mb-0 fw-bold">{currentUser.displayName || 'User'}</p>
+                        <p className="mb-0 small text-muted">{currentUser.email}</p>
+                      </div>
+                      
+                      <Link
+                        to="/profile"
+                        className="d-flex align-items-center p-2 text-decoration-none"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        style={{ color: 'var(--gray-700)', borderRadius: 'var(--border-radius)' }}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--gray-100)'}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <i className="fas fa-user me-2"></i>
+                        Your Profile
+                      </Link>
+                      
+                      <Link
+                        to="/interview"
+                        className="d-flex align-items-center p-2 text-decoration-none"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        style={{ color: 'var(--gray-700)', borderRadius: 'var(--border-radius)' }}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--gray-100)'}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <i className="fas fa-microphone me-2"></i>
+                        Interview Room
+                      </Link>
+                      
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          handleLogout();
+                        }}
+                        className="d-flex align-items-center p-2 w-100 text-start border-0 bg-transparent"
+                        style={{ color: 'var(--danger-color)', borderRadius: 'var(--border-radius)' }}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--gray-100)'}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <i className="fas fa-sign-out-alt me-2"></i>
+                        Sign out
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex items-center space-x-4">
-                <Link
-                  to="/login"
-                  className="text-gray-500 hover:text-blue-700"
-                >
+              <div className="d-flex align-items-center gap-2">
+                <Link to="/login" className="btn btn-outline-primary">
                   Log in
                 </Link>
-                <Link
-                  to="/register"
-                  className="bg-blue-500 text-white hover:bg-blue-600 px-3 py-1 rounded-md"
-                >
+                <Link to="/register" className="btn btn-primary">
                   Sign up
                 </Link>
               </div>
@@ -103,111 +158,103 @@ const Navbar = () => {
           </div>
           
           {/* Mobile menu button */}
-          <div className="flex items-center sm:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-            >
-              <span className="sr-only">Open main menu</span>
-              <svg
-                className={`${isMenuOpen ? 'hidden' : 'block'} h-6 w-6`}
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-              <svg
-                className={`${isMenuOpen ? 'block' : 'hidden'} h-6 w-6`}
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Mobile menu */}
-      <div className={`${isMenuOpen ? 'block' : 'hidden'} sm:hidden`}>
-        <div className="pt-2 pb-3 space-y-1">
-          <Link
-            to="/"
-            className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800"
-            onClick={() => setIsMenuOpen(false)}
+          <button
+            className="btn d-md-none"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
           >
-            Home
-          </Link>
-          {currentUser && (
-            <>
-              <Link
-                to="/interview"
-                className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Interview Room
-              </Link>
-              <Link
-                to="/profile"
-                className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Profile
-              </Link>
-            </>
-          )}
+            <i className={`fas ${isMenuOpen ? 'fa-times' : 'fa-bars'}`}></i>
+          </button>
         </div>
         
-        <div className="pt-4 pb-3 border-t border-gray-200">
-          {currentUser ? (
-            <>
-              <div className="flex items-center px-4">
-                <div className="flex-shrink-0">
+        {/* Mobile menu */}
+        <div 
+          className={`d-md-none transition-all duration-300`} 
+          style={{
+            maxHeight: isMenuOpen ? '500px' : '0',
+            opacity: isMenuOpen ? 1 : 0,
+            overflow: 'hidden',
+            marginTop: isMenuOpen ? '1rem' : '0'
+          }}
+        >
+          <div className="card card-body">
+            <div className="mb-3">
+              <Link
+                to="/"
+                className={`d-block p-2 ${isActive('/') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover-bg-gray-50'}`}
+                style={{ borderRadius: 'var(--border-radius)' }}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Home
+              </Link>
+              
+              {currentUser && (
+                <>
+                  <Link
+                    to="/interview"
+                    className={`d-block p-2 ${isActive('/interview') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover-bg-gray-50'}`}
+                    style={{ borderRadius: 'var(--border-radius)' }}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Interview Room
+                  </Link>
+                  
+                  <Link
+                    to="/profile"
+                    className={`d-block p-2 ${isActive('/profile') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover-bg-gray-50'}`}
+                    style={{ borderRadius: 'var(--border-radius)' }}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Profile
+                  </Link>
+                </>
+              )}
+            </div>
+            
+            {currentUser ? (
+              <div>
+                <div className="d-flex align-items-center mb-3 p-2">
                   <img
                     className="h-10 w-10 rounded-full"
-                    src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${currentUser.displayName || 'User'}&background=0D8ABC&color=fff`}
+                    src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || 'User')}&background=5e60ce&color=fff`}
                     alt="Profile"
+                    style={{ width: '40px', height: '40px', borderRadius: '50%' }}
                   />
+                  <div className="ms-3">
+                    <div className="fw-bold">{currentUser.displayName || 'User'}</div>
+                    <div className="small text-muted">{currentUser.email}</div>
+                  </div>
                 </div>
-                <div className="ml-3">
-                  <div className="text-base font-medium text-gray-800">{currentUser.displayName || 'User'}</div>
-                  <div className="text-sm font-medium text-gray-500">{currentUser.email}</div>
-                </div>
-              </div>
-              <div className="mt-3 space-y-1">
                 <button
                   onClick={() => {
                     setIsMenuOpen(false);
                     handleLogout();
                   }}
-                  className="block w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                  className="btn btn-outline-danger w-100"
                 >
+                  <i className="fas fa-sign-out-alt me-2"></i>
                   Sign out
                 </button>
               </div>
-            </>
-          ) : (
-            <div className="mt-3 space-y-1">
-              <Link
-                to="/login"
-                className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Log in
-              </Link>
-              <Link
-                to="/register"
-                className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Sign up
-              </Link>
-            </div>
-          )}
+            ) : (
+              <div className="d-flex flex-column gap-2">
+                <Link
+                  to="/login"
+                  className="btn btn-outline-primary"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Log in
+                </Link>
+                <Link
+                  to="/register"
+                  className="btn btn-primary"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Sign up
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </nav>
