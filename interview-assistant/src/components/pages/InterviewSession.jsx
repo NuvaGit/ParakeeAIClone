@@ -370,7 +370,6 @@ const InterviewSession = () => {
         </div>
       )}
     </div>
-    
   );
 };
 
