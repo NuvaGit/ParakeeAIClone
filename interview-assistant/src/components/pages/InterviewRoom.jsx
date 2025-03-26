@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Navbar from "../layout/Navbar";
 import InterviewButton from "../interview/InterviewButton";
 import "/src/assets/css/interview-room.css";
@@ -15,8 +16,6 @@ const InterviewRoom = () => {
           <p className="interview-room-subtitle">
             Create a new interview session to practice or use the assistant during real interviews.
           </p>
-          
-          <InterviewButton />
           
           <div className="interview-room-instructions">
             <h3>
@@ -100,6 +99,17 @@ const InterviewRoom = () => {
             </div>
           </div>
         </div>
+      </div>
+      
+      {/* Fixed button at the bottom of the screen */}
+      <div className="fixed bottom-0 left-0 w-full bg-white py-4 px-6 shadow-lg border-t text-center">
+        <Link
+          to="/interviews"
+          className="btn btn-primary btn-lg px-6"
+        >
+          <i className="fas fa-play-circle me-2"></i>
+          Go to interview sessions
+        </Link>
       </div>
     </div>
   );

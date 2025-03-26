@@ -30,6 +30,16 @@ const Navbar = () => {
   };
 
   const isActive = (path) => {
+    // For interview-related pages
+    if (path === '/interview' && 
+        (location.pathname === '/interview' || 
+         location.pathname === '/interviews' || 
+         location.pathname.includes('/interview-session') ||
+         location.pathname.includes('/interview-review') ||
+         location.pathname.includes('/interview-summary') ||
+         location.pathname.includes('/create-interview'))) {
+      return true;
+    }
     return location.pathname === path;
   };
 
@@ -117,6 +127,18 @@ const Navbar = () => {
                       </Link>
                       
                       <Link
+                        to="/interviews"
+                        className="d-flex align-items-center p-2 text-decoration-none"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        style={{ color: 'var(--gray-700)', borderRadius: 'var(--border-radius)' }}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--gray-100)'}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <i className="fas fa-history me-2"></i>
+                        Interview Sessions
+                      </Link>
+                      
+                      <Link
                         to="/interview"
                         className="d-flex align-items-center p-2 text-decoration-none"
                         onClick={() => setProfileDropdownOpen(false)}
@@ -197,6 +219,15 @@ const Navbar = () => {
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Interview Room
+                  </Link>
+                  
+                  <Link
+                    to="/interviews"
+                    className={`d-block p-2 text-gray-700 hover-bg-gray-50'}`}
+                    style={{ borderRadius: 'var(--border-radius)' }}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Interview Sessions
                   </Link>
                   
                   <Link
