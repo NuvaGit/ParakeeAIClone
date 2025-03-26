@@ -147,16 +147,18 @@ p {
 
 /* Navbar */
 .navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1030;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem;
-  transition: var(--transition-base);
+   position: fixed;
+   top: 0;
+   left: 0;
+   right: 0;
+   z-index: 1030;
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   padding: 0.5rem 1rem; /* Reduced vertical padding */
+   height: 60px; /* Set a specific height */
+   max-height: 60px; /* Ensure max height */
+   transition: var(--transition-base);
 }
 
 .navbar-scrolled {
