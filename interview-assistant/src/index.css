@@ -9,3 +9,6 @@
 @import './assets/css/auth.css';
 @import './assets/css/interview.css';
 @import './assets/css/interview-room.css';
+@import './assets/css/interview-modal.css';
+@import './assets/css/interview-overlay.css';
+@import './assets/css/interview-sessions-dark.css';
