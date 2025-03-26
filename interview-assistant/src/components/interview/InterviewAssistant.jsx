@@ -5,7 +5,7 @@ import TranscriptionPanel from './TranscriptionPanel';
 import ResponseGenerator from './ResponseGenerator';
 import "/src/assets/css/interview.css";
 
-const InterviewAssistant = () => {
+const InterviewAssistant = ({ sessionContext, timeRemaining }) => {
   const {
     isListening,
     transcript,
@@ -40,9 +40,25 @@ const InterviewAssistant = () => {
     );
     
     if (latestQuestion && !responseLoading) {
-      generateResponse(latestQuestion.text, latestQuestion.id);
+      // Pass session context to generateResponse for more tailored responses
+      generateResponse(latestQuestion.text, latestQuestion.id, sessionContext);
     }
-  }, [transcriptionHistory, generateResponse, responseLoading]);
+  }, [transcriptionHistory, generateResponse, responseLoading, sessionContext]);
+  
+  // Auto-start listening when component mounts if we have session context
+  useEffect(() => {
+    if (sessionContext && !isListening) {
+      startListening();
+    }
+  }, [sessionContext, isListening, startListening]);
+  
+  // Show session timer if available
+  const formatTime = (seconds) => {
+    if (!seconds) return null;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
   
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -115,7 +131,15 @@ const InterviewAssistant = () => {
       onMouseDown={handleMouseDown}
     >
       <div className="ia-assistant-header">
-        <h2 className="ia-assistant-title">Interview Assistant</h2>
+        <h2 className="ia-assistant-title">
+          Interview Assistant
+          {timeRemaining && (
+            <span className="session-timer ms-2">
+              <i className="fas fa-clock me-1"></i>
+              {formatTime(timeRemaining)}
+            </span>
+          )}
+        </h2>
         <div className="ia-assistant-controls">
           <button 
             onClick={() => setIsFloating(!isFloating)}
@@ -139,6 +163,20 @@ const InterviewAssistant = () => {
           <div className="alert alert-danger mb-3">
             <i className="fas fa-exclamation-triangle me-2"></i>
             {transcriptionError || responseError}
+          </div>
+        )}
+        
+        {sessionContext && (
+          <div className="ia-context-info mb-3">
+            <div className="d-flex align-items-center">
+              <div className="context-icon bg-primary-50 text-primary-600 p-2 rounded-circle me-2">
+                <i className="fas fa-briefcase"></i>
+              </div>
+              <div>
+                <div className="context-label text-muted small">Interview Context</div>
+                <div className="context-value fw-medium">{sessionContext.company} - {sessionContext.position.substring(0, 30)}{sessionContext.position.length > 30 && '...'}</div>
+              </div>
+            </div>
           </div>
         )}
         

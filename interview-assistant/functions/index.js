@@ -1,24 +1,27 @@
+/* eslint-disable no-undef */
 // functions/index.js
+// note i add ai key through command line 
+// firebase functions:config:set openai.key="your-actual-openai-api-key"
+
 const { onCall } = require("firebase-functions/v2/https");
 const { OpenAI } = require("openai");
 const logger = require("firebase-functions/logger");
+const { defineString } = require('firebase-functions/params');
 
-// Initialize OpenAI with the API key from Firebase environment
+const openaiApiKey = defineString('openai.key');
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY // Make sure this is set in your Firebase environment
+  apiKey: openaiApiKey.value() 
 });
 
 exports.generateAIResponse = onCall(async (request) => {
   try {
-    // Get data from the request
     const { question, userContext } = request.data;
     
-    // Create a prompt for the OpenAI API
     const prompt = createInterviewPrompt(question, userContext);
     
-    // Call OpenAI API
     const response = await openai.chat.completions.create({
-      model: "gpt-4", // or any model you prefer
+      model: "gpt-4o-mini", 
       messages: [
         {
           role: "system",
@@ -51,16 +54,20 @@ exports.generateAIResponse = onCall(async (request) => {
 // Create a well-formed prompt for interview assistance
 function createInterviewPrompt(question, userContext) {
   return `
-You are an AI interview assistant helping with a job interview. 
+You are an AI interview assistant helping with a job interview.
+
 The interview candidate has the following background:
 - Name: ${userContext.name || 'Unknown'}
 - Target Position: ${userContext.jobTitle || 'Unknown'}
+- Target Company: ${userContext.company || 'Unknown'}
 - Industry: ${userContext.industry || 'Unknown'}
 - Years of Experience: ${userContext.experience || 0}
 - Key Skills: ${(userContext.skills || []).join(', ')}
 
-Resume Summary:
-${userContext.resumeText ? (userContext.resumeText.substring(0, 500) + (userContext.resumeText.length > 500 ? '...' : '')) : 'No resume provided.'}
+Resume Summary: ${userContext.resumeText ? (userContext.resumeText.substring(0, 500) + (userContext.resumeText.length > 500 ? '...' : '')) : 'No resume provided.'}
+
+${userContext.instructions ? `Special Instructions: ${userContext.instructions}` : ''}
+${userContext.useSimpleLanguage ? 'IMPORTANT: Use simple, clear English with common words and avoid complex vocabulary or idioms.' : ''}
 
 The interviewer has asked the following question:
 "${question}"

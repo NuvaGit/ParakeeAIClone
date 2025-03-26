@@ -11,13 +11,24 @@ const useAIResponses = () => {
   const [error, setError] = useState(null);
   const [currentResponse, setCurrentResponse] = useState('');
   
-  const generateResponse = useCallback(async (question, questionId) => {
+  const generateResponse = useCallback(async (question, questionId, sessionContext = null) => {
     setLoading(true);
     setError(null);
     
     try {
       // Prepare user context from profile
-      const userContext = prepareUserContext(userProfile);
+      let userContext = prepareUserContext(userProfile);
+      
+      // If session context is provided, use it to enhance the context
+      if (sessionContext) {
+        userContext = {
+          ...userContext,
+          company: sessionContext.company || userContext.company,
+          jobTitle: sessionContext.position || userContext.jobTitle,
+          instructions: sessionContext.instructions || '',
+          useSimpleLanguage: sessionContext.useSimpleLanguage || false
+        };
+      }
       
       // Call Firebase function to get AI response
       const response = await generateAIResponse(

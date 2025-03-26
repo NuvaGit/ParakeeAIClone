@@ -33,26 +33,44 @@ export const prepareUserContext = (userProfile) => {
 
 // Create a well-formed prompt for interview assistance
 export const createInterviewPrompt = (question, userContext) => {
-  return `
+  // Base prompt
+  let prompt = `
 You are an AI interview assistant helping with a job interview. 
 The interview candidate has the following background:
 - Name: ${userContext.name}
-- Target Position: ${userContext.jobTitle}
-- Industry: ${userContext.industry}
-- Years of Experience: ${userContext.experience}
-- Key Skills: ${userContext.skills.join(', ')}
+- Target Position: ${userContext.jobTitle || 'Not specified'}
+- Target Company: ${userContext.company || 'Not specified'}
+- Industry: ${userContext.industry || 'Not specified'}
+- Years of Experience: ${userContext.experience || 'Not specified'}
+- Key Skills: ${(userContext.skills && userContext.skills.length > 0) ? userContext.skills.join(', ') : 'Not specified'}
+`;
 
-Resume Summary:
-${userContext.resumeText.substring(0, 500)}${userContext.resumeText.length > 500 ? '...' : ''}
+  // Add resume text if available
+  if (userContext.resumeText) {
+    prompt += `\nResume Summary:\n${userContext.resumeText.substring(0, 500)}${userContext.resumeText.length > 500 ? '...' : ''}`;
+  }
 
-The interviewer has asked the following question:
-"${question}"
+  // Add custom instructions if available
+  if (userContext.instructions) {
+    prompt += `\nSpecial Instructions: ${userContext.instructions}`;
+  }
 
-Please generate a professional and effective response for this interview question. The response should:
+  // Add simple language instruction if requested
+  if (userContext.useSimpleLanguage) {
+    prompt += `\nIMPORTANT: Use simple, clear English with common words and avoid complex vocabulary or idioms.`;
+  }
+
+  // Add the interview question
+  prompt += `\n\nThe interviewer has asked the following question:\n"${question}"\n\n`;
+
+  // Response instructions
+  prompt += `Please generate a professional and effective response for this interview question. The response should:
 1. Be concise but comprehensive (about 3-4 sentences)
 2. Include specific examples from the candidate's background when relevant
 3. Highlight relevant skills and experiences
 4. Follow the STAR method (Situation, Task, Action, Result) when applicable
 5. Sound natural and conversational, not robotic or over-formal
 `;
+
+  return prompt;
 };
