@@ -7,6 +7,7 @@ import InterviewAssistant from "../interview/InterviewAssistant";
 import Navbar from "../layout/Navbar";
 import { generateAIResponse } from '../utils/openai';
 
+
 const InterviewSession = () => {
   const { id } = useParams();
   const { currentUser } = useContext(AuthContext);
