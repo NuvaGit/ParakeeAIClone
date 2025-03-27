@@ -116,19 +116,20 @@ const Navbar = () => {
                 <button 
                   className="d-flex align-items-center gap-2 btn btn-sm"
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                  style={{ height: '40px' }} /* Fixed height to match navbar */
                 >
                   <img
-                    className="h-10 w-10 rounded-full"
+                    className="rounded-full"
                     src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || 'User')}&background=5e60ce&color=fff`}
                     alt="Profile"
-                    style={{ width: '32px', height: '32px', borderRadius: '50%' }}
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
                   />
                   <span>{currentUser.displayName?.split(' ')[0] || 'User'}</span>
                   <i className={`fas fa-chevron-down ${profileDropdownOpen ? 'fa-rotate-180' : ''}`}></i>
                 </button>
                 
                 {profileDropdownOpen && (
-                  <div className="card">
+                  <div className="card" style={{ position: 'absolute', right: 0, top: '45px', zIndex: 1000 }}>
                     <div className="card-body p-3">
                       <div className="mb-2 pb-2" style={{ borderBottom: '1px solid var(--gray-200)' }}>
                         <p className="mb-0 fw-bold">{currentUser.displayName || 'User'}</p>
@@ -259,10 +260,10 @@ const Navbar = () => {
               <div>
                 <div className="d-flex align-items-center mb-3 p-2">
                   <img
-                    className="h-10 w-10 rounded-full"
+                    className="rounded-full"
                     src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || 'User')}&background=5e60ce&color=fff`}
                     alt="Profile"
-                    style={{ width: '40px', height: '40px', borderRadius: '50%' }}
+                    style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
                   />
                   <div className="ms-3">
                     <div className="fw-bold">{currentUser.displayName || 'User'}</div>
