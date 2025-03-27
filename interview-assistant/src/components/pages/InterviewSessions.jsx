@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, deleteDoc, doc, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { AuthContext } from '../contexts/AuthContext';
 import Navbar from "../layout/Navbar";
 import '../../assets/css/interview-sessions-dark.css';
 
 // Import any necessary icons
-import { 
-  FaMicrophone, FaPlus, FaSearch, FaTimes, FaFilter, 
-  FaCalendarAlt, FaQuestionCircle, FaLanguage, FaSync, 
-  FaEye, FaFileAlt, FaBuilding, FaTrashAlt, FaEllipsisV 
+import {
+  FaMicrophone, FaPlus, FaSearch, FaTimes, FaFilter,
+  FaCalendarAlt, FaQuestionCircle, FaLanguage, FaSync,
+  FaEye, FaFileAlt, FaBuilding, FaTrashAlt, FaEllipsisV,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 
 const InterviewSessions = () => {
@@ -23,47 +24,102 @@ const InterviewSessions = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [interviewToDelete, setInterviewToDelete] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  // Fetch user's interview sessions
-  useEffect(() => {
-    const fetchInterviews = async () => {
-      if (!currentUser) return;
+  // Add state to track open dropdown menus
+  const [openDropdownId, setOpenDropdownId] = useState(null);
 
-      try {
-        const interviewsRef = collection(db, 'interviews');
-        const q = query(interviewsRef, where("userId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
-        
-        const interviewsData = [];
-        querySnapshot.forEach((doc) => {
-          interviewsData.push({
-            id: doc.id,
-            ...doc.data()
-          });
+  // Fetch user's interview sessions - improved with memoization using useCallback
+  const fetchInterviews = useCallback(async (isInitialLoad = false) => {
+    if (!currentUser) return;
+
+    try {
+      setLoading(isInitialLoad);
+      if (!isInitialLoad) setLoadingMore(true);
+
+      const interviewsRef = collection(db, 'interviews');
+      
+      // Create a more efficient query with pagination
+      const q = query(
+        interviewsRef, 
+        where("userId", "==", currentUser.uid),
+        orderBy("createdAt", "desc"),
+        limit(isInitialLoad ? 10 : 50) // Limit initial load, allow more on refresh
+      );
+
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty && isInitialLoad) {
+        setInterviews([]);
+        setHasMore(false);
+        return;
+      }
+      
+      const interviewsData = [];
+      querySnapshot.forEach((doc) => {
+        // Make sure to handle potential missing fields safely
+        const data = doc.data();
+        interviewsData.push({
+          id: doc.id,
+          company: data.company || 'Unnamed Interview',
+          position: data.position || 'No position specified',
+          createdAt: data.createdAt || null,
+          questions: data.questions || [],
+          useSimpleLanguage: data.useSimpleLanguage || false,
+          hotkey: data.hotkey || 'Space',
+          ...data
         });
-        
-        // Sort by date (most recent first)
-        interviewsData.sort((a, b) => {
-          if (!a.createdAt) return 1;
-          if (!b.createdAt) return -1;
-          return new Date(b.createdAt.seconds * 1000) - new Date(a.createdAt.seconds * 1000);
-        });
-        
+      });
+
+      // Handle initial load vs additional loads
+      if (isInitialLoad) {
         setInterviews(interviewsData);
-      } catch (err) {
-        console.error("Error fetching interviews:", err);
-        setError("Failed to load interviews. Please try again.");
-      } finally {
-        setLoading(false);
+      } else {
+        // Merge new interviews with existing ones, avoiding duplicates
+        const existingIds = new Set(interviews.map(interview => interview.id));
+        const newInterviews = interviewsData.filter(interview => !existingIds.has(interview.id));
+        setInterviews(prevInterviews => [...prevInterviews, ...newInterviews]);
+      }
+
+      // Update whether there are more interviews to load
+      setHasMore(interviewsData.length === (isInitialLoad ? 10 : 50));
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching interviews:", err);
+      setError("Failed to load interviews. Please try again.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+      if (isInitialLoad) setInitialLoad(false);
+    }
+  }, [currentUser, interviews]);
+
+  // Initial data fetching
+  useEffect(() => {
+    if (currentUser && initialLoad) {
+      fetchInterviews(true);
+    }
+  }, [currentUser, fetchInterviews, initialLoad]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openDropdownId && !event.target.closest('.dropdown')) {
+        setOpenDropdownId(null);
       }
     };
 
-    fetchInterviews();
-  }, [currentUser]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdownId]);
 
   const openDeleteModal = (interview) => {
     setInterviewToDelete(interview);
     setIsDeleteModalOpen(true);
+    // Close any open dropdown
+    setOpenDropdownId(null);
   };
 
   const closeDeleteModal = () => {
@@ -76,12 +132,21 @@ const InterviewSessions = () => {
     
     try {
       await deleteDoc(doc(db, 'interviews', interviewToDelete.id));
-      setInterviews(interviews.filter(interview => interview.id !== interviewToDelete.id));
+      
+      // Update state to remove the deleted interview
+      setInterviews(prevInterviews => 
+        prevInterviews.filter(interview => interview.id !== interviewToDelete.id)
+      );
+      
       closeDeleteModal();
     } catch (err) {
       console.error("Error deleting interview:", err);
       setError("Failed to delete interview. Please try again.");
     }
+  };
+
+  const toggleDropdown = (interviewId) => {
+    setOpenDropdownId(openDropdownId === interviewId ? null : interviewId);
   };
 
   const filteredInterviews = interviews
@@ -105,47 +170,30 @@ const InterviewSessions = () => {
   const formatDate = (timestamp) => {
     if (!timestamp) return 'Date not available';
     
-    const date = timestamp.seconds 
-      ? new Date(timestamp.seconds * 1000) 
-      : new Date(timestamp);
-    
-    return date.toLocaleDateString(undefined, {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    try {
+      // Handle different timestamp formats
+      const date = timestamp.seconds
+        ? new Date(timestamp.seconds * 1000) // Firestore timestamp
+        : timestamp instanceof Date 
+          ? timestamp // Already a Date object
+          : new Date(timestamp); // ISO string or timestamp in milliseconds
+      
+      return date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return 'Invalid date';
+    }
   };
 
   const retryLoading = () => {
     setLoading(true);
     setError(null);
-    // Fetch interviews again
-    const fetchInterviews = async () => {
-      try {
-        const interviewsRef = collection(db, 'interviews');
-        const q = query(interviewsRef, where("userId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
-        
-        const interviewsData = [];
-        querySnapshot.forEach((doc) => {
-          interviewsData.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-        
-        setInterviews(interviewsData);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching interviews:", err);
-        setError("Failed to load interviews. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInterviews();
+    fetchInterviews(true);
   };
 
   return (
@@ -183,9 +231,7 @@ const InterviewSessions = () => {
         {error && (
           <div className="error-message animate-fade-in">
             <div className="error-icon">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
+              <FaExclamationTriangle />
             </div>
             <div className="error-content">{error}</div>
             <div className="error-actions">
@@ -304,120 +350,144 @@ const InterviewSessions = () => {
             )}
           </div>
         ) : (
-          <div className="interview-grid">
-            {filteredInterviews.map((interview, index) => (
-              <div 
-                key={interview.id} 
-                className="interview-card animate-slide-up"
-                style={{animationDelay: `${index * 0.1}s`}}
-              >
-                <div className="interview-card-header bg-gradient-header">
-                  <div className="interview-card-header-content">
-                    <div>
-                      <div className="interview-card-title-container">
-                        <FaBuilding className="interview-card-title-icon" />
-                        <h3 className="interview-card-title">
-                          {interview.company || "Unnamed Interview"}
-                        </h3>
+          <>
+            <div className="interview-grid">
+              {filteredInterviews.map((interview, index) => (
+                <div 
+                  key={interview.id} 
+                  className="interview-card animate-slide-up"
+                  style={{animationDelay: `${index * 0.1}s`}}
+                >
+                  <div className="interview-card-header bg-gradient-header">
+                    <div className="interview-card-header-content">
+                      <div>
+                        <div className="interview-card-title-container">
+                          <FaBuilding className="interview-card-title-icon" />
+                          <h3 className="interview-card-title">
+                            {interview.company || "Unnamed Interview"}
+                          </h3>
+                        </div>
+                        <p className="interview-card-subtitle">
+                          {interview.position || "No position specified"}
+                        </p>
                       </div>
-                      <p className="interview-card-subtitle">
-                        {interview.position || "No position specified"}
-                      </p>
-                    </div>
-                    <div className="dropdown">
-                      <button 
-                        className="dropdown-button"
-                        aria-label="Options"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const menu = e.currentTarget.nextElementSibling;
-                          menu.classList.toggle('hidden');
-                        }}
-                      >
-                        <FaEllipsisV />
-                      </button>
-                      <div className="dropdown-menu hidden">
+                      <div className="dropdown">
                         <button 
-                          className="dropdown-item dropdown-item-delete"
-                          onClick={() => openDeleteModal(interview)}
+                          className="dropdown-button"
+                          aria-label="Options"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleDropdown(interview.id);
+                          }}
                         >
-                          <FaTrashAlt className="dropdown-item-icon" />
-                          Delete Interview
+                          <FaEllipsisV />
                         </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="interview-card-body">
-                  <div className="interview-card-tags">
-                    <div className="interview-card-tag tag-date">
-                      <FaCalendarAlt className="interview-card-tag-icon" />
-                      {formatDate(interview.createdAt)}
-                    </div>
-                    
-                    <div className="interview-card-tag tag-questions">
-                      <FaQuestionCircle className="interview-card-tag-icon" />
-                      {(interview.questions?.length || 0)} questions
-                    </div>
-                    
-                    {interview.useSimpleLanguage && (
-                      <div className="interview-card-tag tag-language">
-                        <FaLanguage className="interview-card-tag-icon" />
-                        Simple Language
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="interview-card-stats">
-                    <div className="interview-card-stat">
-                      <div className="interview-card-stat-label">Status</div>
-                      <div className="interview-card-stat-value">
-                        {interview.questions && interview.questions.length > 0 ? (
-                          <>
-                            <span className="status-indicator status-completed"></span>
-                            <span className="status-text-completed">Completed</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="status-indicator status-progress"></span>
-                            <span className="status-text-progress">In Progress</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="interview-card-stat">
-                      <div className="interview-card-stat-label">Hotkey</div>
-                      <div className="interview-card-stat-value">
-                        <kbd className="hotkey-badge">
-                          {interview.hotkey || "Space"}
-                        </kbd>
+                        <div className={`dropdown-menu ${openDropdownId !== interview.id ? 'hidden' : ''}`}>
+                          <button 
+                            className="dropdown-item dropdown-item-delete"
+                            onClick={() => openDeleteModal(interview)}
+                          >
+                            <FaTrashAlt className="dropdown-item-icon" />
+                            Delete Interview
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="interview-card-actions">
-                    <button
-                      onClick={() => navigate(`/interview-summary/${interview.id}`)}
-                      className={`btn btn-secondary ${!interview.questions?.length ? 'btn-disabled' : ''}`}
-                      disabled={!interview.questions?.length}
-                    >
-                      <FaFileAlt className="btn-icon" />
-                      Summary
-                    </button>
+                  <div className="interview-card-body">
+                    <div className="interview-card-tags">
+                      <div className="interview-card-tag tag-date">
+                        <FaCalendarAlt className="interview-card-tag-icon" />
+                        {formatDate(interview.createdAt)}
+                      </div>
+                      
+                      <div className="interview-card-tag tag-questions">
+                        <FaQuestionCircle className="interview-card-tag-icon" />
+                        {(interview.questions?.length || 0)} questions
+                      </div>
+                      
+                      {interview.useSimpleLanguage && (
+                        <div className="interview-card-tag tag-language">
+                          <FaLanguage className="interview-card-tag-icon" />
+                          Simple Language
+                        </div>
+                      )}
+                    </div>
                     
-                    <Link
-                      to={`/interview-review/${interview.id}`}
-                      className="btn btn-primary"
-                    >
-                      <FaEye className="btn-icon" />
-                      Review
-                    </Link>
+                    <div className="interview-card-stats">
+                      <div className="interview-card-stat">
+                        <div className="interview-card-stat-label">Status</div>
+                        <div className="interview-card-stat-value">
+                          {interview.questions && interview.questions.length > 0 ? (
+                            <>
+                              <span className="status-indicator status-completed"></span>
+                              <span className="status-text-completed">Completed</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="status-indicator status-progress"></span>
+                              <span className="status-text-progress">In Progress</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="interview-card-stat">
+                        <div className="interview-card-stat-label">Hotkey</div>
+                        <div className="interview-card-stat-value">
+                          <kbd className="hotkey-badge">
+                            {interview.hotkey || "Space"}
+                          </kbd>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="interview-card-actions">
+                      <button
+                        onClick={() => navigate(`/interview-summary/${interview.id}`)}
+                        className={`btn btn-secondary ${!interview.questions?.length ? 'btn-disabled' : ''}`}
+                        disabled={!interview.questions?.length}
+                      >
+                        <FaFileAlt className="btn-icon" />
+                        Summary
+                      </button>
+                      
+                      <Link
+                        to={`/interview-review/${interview.id}`}
+                        className="btn btn-primary"
+                      >
+                        <FaEye className="btn-icon" />
+                        Review
+                      </Link>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+            
+            {/* Load more button */}
+            {hasMore && (
+              <div className="text-center mt-6 mb-8">
+                <button 
+                  className="btn btn-secondary btn-lg"
+                  onClick={() => fetchInterviews(false)}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? (
+                    <>
+                      <div className="animate-spin h-5 w-5 mr-3 border-t-2 border-b-2 border-white rounded-full"></div>
+                      Loading More...
+                    </>
+                  ) : (
+                    <>
+                      <FaSync className="btn-icon" />
+                      Load More Sessions
+                    </>
+                  )}
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
       
