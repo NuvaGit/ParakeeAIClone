@@ -12,7 +12,7 @@ export default function Header() {
           {/* Site branding */}
           <div className="flex flex-1 items-center">
             <Logo />
-            <span className="ml-3 text-lg font-semibold text-gray-200">InterView Buddy AI</span>
+            <span className="ml-3 text-lg font-semibold text-gray-200">InterviewACE AI</span>
           </div>
 
           {/* Desktop navigation */}
@@ -25,12 +25,12 @@ export default function Header() {
               </li>
               <li>
                 <Link href="#parakeet" className="text-sm text-indigo-200/65 hover:text-indigo-300">
-                  Parakeet AI
+                  Help
                 </Link>
               </li>
               <li>
                 <Link href="#interviewer" className="text-sm text-indigo-200/65 hover:text-indigo-300">
-                  Interview Coder
+                  Pricing
                 </Link>
               </li>
             </ul>
@@ -51,7 +51,7 @@ export default function Header() {
                 href="/signup"
                 className="btn-sm bg-linear-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-[bottom] py-[5px] text-white shadow-[inset_0px_1px_0px_0px_--theme(--color-white/.16)] hover:bg-[length:100%_150%]"
               >
-                Start Free Trial
+                Sign Up
               </Link>
             </li>
           </ul>

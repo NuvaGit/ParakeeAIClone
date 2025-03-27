@@ -22,7 +22,7 @@ export default function HeroHome() {
                 data-aos="fade-up"
                 data-aos-delay={200}
               >
-                Interview Buddy AI and Interview Coder provide real-time, undetectable support during job interviews, helping you deliver perfect answers and solve coding challenges effortlessly.
+                InterviewAce AI and provides real-time, undetectable support during job interviews, helping you deliver perfect answers and solve coding challenges effortlessly.
               </p>
               <div className="mx-auto max-w-xs sm:flex sm:max-w-none sm:justify-center">
                 <div data-aos="fade-up" data-aos-delay={400}>
@@ -31,7 +31,7 @@ export default function HeroHome() {
                     href="#parakeet"
                   >
                     <span className="relative inline-flex items-center">
-                      Try Interview Buddy AI
+                      Try InterviewAce AI
                       <span className="ml-1 tracking-normal text-white/50 transition-transform group-hover:translate-x-0.5">
                         -&gt;
                       </span>
