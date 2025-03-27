@@ -20,6 +20,18 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileDropdownOpen && !event.target.closest('.profile-dropdown-container')) {
+        setProfileDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [profileDropdownOpen]);
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -88,10 +100,19 @@ const Navbar = () => {
             </ul>
           </div>
           
+          {/* Mobile menu button - positioned to the left */}
+          <button
+            className="btn d-md-none"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+          >
+            <i className={`fas ${isMenuOpen ? 'fa-times' : 'fa-bars'}`}></i>
+          </button>
+          
           {/* Desktop right side - login/signup or profile */}
           <div className="d-flex align-items-center">
             {currentUser ? (
-              <div className="relative">
+              <div className="relative profile-dropdown-container">
                 <button 
                   className="d-flex align-items-center gap-2 btn btn-sm"
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -107,7 +128,7 @@ const Navbar = () => {
                 </button>
                 
                 {profileDropdownOpen && (
-                  <div className="card" style={{ position: 'absolute', right: 0, top: '100%', minWidth: '200px', marginTop: '0.5rem', zIndex: 1000 }}>
+                  <div className="card">
                     <div className="card-body p-3">
                       <div className="mb-2 pb-2" style={{ borderBottom: '1px solid var(--gray-200)' }}>
                         <p className="mb-0 fw-bold">{currentUser.displayName || 'User'}</p>
@@ -178,15 +199,6 @@ const Navbar = () => {
               </div>
             )}
           </div>
-          
-          {/* Mobile menu button */}
-          <button
-            className="btn d-md-none"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
-          >
-            <i className={`fas ${isMenuOpen ? 'fa-times' : 'fa-bars'}`}></i>
-          </button>
         </div>
         
         {/* Mobile menu */}
@@ -196,7 +208,8 @@ const Navbar = () => {
             maxHeight: isMenuOpen ? '500px' : '0',
             opacity: isMenuOpen ? 1 : 0,
             overflow: 'hidden',
-            marginTop: isMenuOpen ? '1rem' : '0'
+            marginTop: isMenuOpen ? '1rem' : '0',
+            pointerEvents: isMenuOpen ? 'auto' : 'none'
           }}
         >
           <div className="card card-body">
@@ -223,7 +236,7 @@ const Navbar = () => {
                   
                   <Link
                     to="/interviews"
-                    className={`d-block p-2 text-gray-700 hover-bg-gray-50'}`}
+                    className={`d-block p-2 text-gray-700 hover-bg-gray-50`}
                     style={{ borderRadius: 'var(--border-radius)' }}
                     onClick={() => setIsMenuOpen(false)}
                   >
