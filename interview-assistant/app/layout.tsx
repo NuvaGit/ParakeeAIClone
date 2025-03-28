@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import Header from "@/components/ui/header";
 import { AuthProvider } from "@/firebase/auth";
 
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -54,6 +55,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
+            {/* The Header component will be included in main layout, but we'll modify the Header component to conditionally show based on route */}
             <Header />
             {children}
           </div>

@@ -4,10 +4,19 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/firebase/auth";
 import Logo from "./logo";
+import { usePathname } from 'next/navigation';
 
 export default function Header() {
   const { user } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
+  const pathname = usePathname();
+  
+  // Hide header on dashboard routes
+  const isDashboardRoute = pathname?.startsWith('/dashboard');
+  
+  if (isDashboardRoute) {
+    return null; // Don't render the header at all for dashboard routes
+  }
 
   useEffect(() => {
     const handleScroll = () => {
