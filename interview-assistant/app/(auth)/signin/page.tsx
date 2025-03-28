@@ -20,7 +20,7 @@ export default function SignIn() {
 
     try {
       await signIn(email, password);
-      router.push("/");
+      router.push("/dashboard");
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -38,7 +38,7 @@ export default function SignIn() {
 
     try {
       await signInWithGoogle();
-      router.push("/");
+      router.push("/dashboard");
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);

@@ -30,12 +30,11 @@ export default function SignUp() {
 
     try {
       // Create user with Firebase Auth
-      await signUp(email, password);
+      const userCredential = await signUp(email, password);
       
-      // After successful signup, the user object should be available from useAuth()
-      if (user) {
-        // Store additional user data in Firestore
-        await setDoc(doc(db, "users", user.uid), {
+      // After successful signup, store additional user data in Firestore
+      if (userCredential?.user) {
+        await setDoc(doc(db, "users", userCredential.user.uid), {
           name,
           secondName,
           email,
@@ -45,7 +44,7 @@ export default function SignUp() {
         });
       }
 
-      router.push("/");
+      router.push("/dashboard");
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -63,24 +62,24 @@ export default function SignUp() {
 
     try {
       // Sign in with Google
-      await signInWithGoogle();
+      const result = await signInWithGoogle();
       
-      // After successful sign-in, the user should be available from context
-      if (user) {
+      // After successful sign-in, store additional info
+      if (result?.user) {
         // Check if this user already has a document in Firestore
-        const userDoc = await doc(db, "users", user.uid);
+        const userDocRef = doc(db, "users", result.user.uid);
         
         // If it's a new user, store additional info
-        await setDoc(userDoc, {
-          name: user.displayName || '',
-          email: user.email,
+        await setDoc(userDocRef, {
+          name: result.user.displayName || '',
+          email: result.user.email,
           createdAt: new Date().toISOString(),
           credits: 0, // Initial credits count
           hasActiveSubscription: false
         }, { merge: true }); // Using merge: true to avoid overwriting existing data
       }
       
-      router.push("/");
+      router.push("/dashboard");
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -149,7 +148,7 @@ export default function SignUp() {
                   className="mb-1 block text-sm font-medium text-indigo-200/65"
                   htmlFor="email"
                 >
-                  Email <span className="text-red-500">*</span>
+                  Work Email <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="email"
