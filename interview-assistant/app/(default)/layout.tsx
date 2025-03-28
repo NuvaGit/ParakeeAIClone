@@ -1,31 +1,15 @@
-"use client";
+import "../css/style.css"; // Correctly point to the CSS file in the parent directory
+import PageIllustration from "@/components/page-illustration";
 
-import { useEffect } from "react";
-
-import AOS from "aos";
-import "aos/dist/aos.css";
-
-import Footer from "@/components/ui/footer";
-
-export default function DefaultLayout({
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    AOS.init({
-      once: true,
-      disable: "phone",
-      duration: 600,
-      easing: "ease-out-sine",
-    });
-  });
-
   return (
-    <>
-      <main className="relative flex grow flex-col">{children}</main>
-
-      <Footer />
-    </>
+    <main className="relative flex grow flex-col">
+      <PageIllustration multiple />
+      {children}
+    </main>
   );
 }
