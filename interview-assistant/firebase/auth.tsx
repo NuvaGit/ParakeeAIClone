@@ -71,6 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     resetPassword
   };
+  console.log("Auth provider state:", { user: user?.uid, loading });
 
   return (
     <AuthContext.Provider value={value}>
