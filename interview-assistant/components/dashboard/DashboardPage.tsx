@@ -1,328 +1,384 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useDashboard } from "@/context/DashboardContext";
+import { useAuth } from "@/firebase/auth";  // Add this import
 import Link from "next/link";
 import Sidebar from "./Sidebar";
 
 export default function DashboardPage() {
   const { userData } = useDashboard();
+  const { user } = useAuth();  // Add this line to get access to the user object
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userDropdownRef.current && 
+          !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
-    <>
-      <div className="flex h-screen bg-gray-950">
-        {/* Sidebar Component */}
-        <Sidebar />
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-y-auto bg-gradient-to-b from-gray-900 to-gray-950">
-          {/* Top Header */}
-          <header className="bg-gray-900/50 border-b border-gray-800 px-6 py-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between">
+    <div className="flex h-screen bg-gray-900">
+      {/* Sidebar Component */}
+      <Sidebar />
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header */}
+        <header className="bg-gray-800 border-b border-gray-700 shadow-sm">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/" 
+                className="flex items-center text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md transition-colors duration-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span className="font-medium">Main Menu</span>
+              </Link>
               <h1 className="text-xl font-semibold text-white">Dashboard</h1>
-              
-              <div className="flex items-center space-x-4">
-                <button className="relative text-gray-400 hover:text-white focus:outline-none group">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {/* User Dropdown */}
+              <div className="relative" ref={userDropdownRef}>
+                <button 
+                  className="flex items-center space-x-2 focus:outline-none"
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                >
+                  <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium shadow-md">
+                    {userData?.name ? userData.name.charAt(0).toUpperCase() : 
+                     user?.email ? user.email.charAt(0).toUpperCase() : "U"}
+                  </div>
+                  <span className="ml-2 text-gray-300">{userData?.name || user?.email || 'User'}</span>
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`} 
+                    viewBox="0 0 20 20" 
+                    fill="currentColor"
+                  >
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
-                  <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-indigo-500 ring-2 ring-gray-900"></span>
                 </button>
                 
-                <div className="relative">
-                  <div className="h-8 w-8 rounded-full bg-indigo-600/30 flex items-center justify-center">
-                    <span className="text-indigo-300 font-medium">
-                      {userData?.name ? userData.name.charAt(0).toUpperCase() : "U"}
-                    </span>
+                {/* Dropdown Menu */}
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
+                    <div className="py-2">
+                      <Link 
+                        href="/dashboard/profile" 
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                      >
+                        Profile
+                      </Link>
+                      <Link 
+                        href="/dashboard/statistics" 
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                      >
+                        Statistics
+                      </Link>
+                      <Link 
+                        href="/dashboard/settings" 
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                      >
+                        Settings
+                      </Link>
+                      <div className="border-t border-gray-700 my-1"></div>
+                      <button 
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                        onClick={() => {/* Handle logout */}}
+                      >
+                        Sign out
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
-          </header>
-
-          {/* Main Content Area */}
-          <main className="flex-1 p-6">
-            <div className="mb-8">
-              <h1 className="animate-[gradient_6s_linear_infinite] bg-[linear-gradient(to_right,var(--color-gray-200),var(--color-indigo-200),var(--color-gray-50),var(--color-indigo-300),var(--color-gray-200))] bg-[length:200%_auto] bg-clip-text font-nacelle text-3xl font-semibold text-transparent md:text-4xl">
+          </div>
+        </header>
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-auto p-6 bg-gray-900">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700 transform transition-all duration-300 hover:shadow-lg">
+              <h2 className="text-2xl font-bold text-white mb-4">
                 Welcome, {userData?.name || 'there'}!
-              </h1>
-              <p className="mt-2 text-indigo-200/65 text-lg">
+              </h2>
+              <p className="text-gray-300">
                 Your interview assistant is ready to help you succeed.
               </p>
             </div>
-
             {/* Account Status */}
-            <div className="bg-gray-900/50 rounded-lg p-6 mb-8 border border-gray-800 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300 shadow-lg shadow-gray-950/50">
-              <h2 className="text-xl font-semibold text-gray-200 mb-4">Account Status</h2>
+            <div className="bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700 transform transition-all duration-300 hover:shadow-lg">
+              <h2 className="text-lg font-semibold text-white mb-4">Account Status</h2>
               <div className="flex items-center">
-                <div className={`h-3 w-3 rounded-full mr-2 ${userData?.hasActiveSubscription ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                <p className="text-gray-300">
+                <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  userData?.hasActiveSubscription 
+                    ? 'bg-green-900 text-green-300 border border-green-700' 
+                    : 'bg-blue-900 text-blue-300 border border-blue-700'
+                }`}>
                   {userData?.hasActiveSubscription ? 'Premium Account' : 'Free Account'}
-                </p>
+                </div>
               </div>
               {!userData?.hasActiveSubscription && (
-                <div className="mt-4">
-                  <button
-                    onClick={() => setShowUpgradeModal(true)}
-                    className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-md hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 inline-block"
-                  >
-                    Upgrade to Premium
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="mt-4 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-md hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 inline-block font-medium"
+                >
+                  Upgrade to Premium
+                </button>
               )}
+              
               {userData?.hasActiveSubscription && (
-                <div className="mt-4">
-                  <p className="text-green-400 text-sm font-medium">
-                    Enjoy unlimited access to all InterviewAce AI features.
-                  </p>
+                <div className="mt-4 text-gray-300">
+                  Enjoy unlimited access to all InterviewAce AI features.
                 </div>
               )}
             </div>
-
             {/* Quick Actions */}
-            <h2 className="text-xl font-semibold text-gray-200 mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Start Interview */}
-              <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10 transition-all duration-300 group">
-                <Link href="/dashboard/interview" className="block p-6">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-indigo-600/20 mb-4 group-hover:bg-indigo-600/40 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                    </svg>
+            <div className="bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700 transform transition-all duration-300 hover:shadow-lg">
+              <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Start Interview */}
+                <Link href="/interview/new" className="group">
+                  <div className="border border-gray-600 rounded-lg p-4 transition-all duration-300 hover:border-indigo-500 hover:bg-gray-700 hover:shadow-md h-full">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 mr-3 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-white group-hover:text-indigo-300 transition-colors">Start Interview</h3>
+                        <p className="text-sm text-gray-400">Begin a new interview session with AI assistance.</p>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-200 mb-1">Start Interview</h3>
-                  <p className="text-indigo-200/65 text-sm">Begin a new interview session with AI assistance.</p>
                 </Link>
-              </div>
-
-              {/* CV Analysis */}
-              <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10 transition-all duration-300 group">
-                <Link href="/dashboard/cv-analysis" className="block p-6">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-indigo-600/20 mb-4 group-hover:bg-indigo-600/40 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                    </svg>
+                {/* CV Analysis */}
+                <Link href="/cv-analysis" className="group">
+                  <div className="border border-gray-600 rounded-lg p-4 transition-all duration-300 hover:border-indigo-500 hover:bg-gray-700 hover:shadow-md h-full">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 mr-3 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-white group-hover:text-indigo-300 transition-colors">CV Analysis</h3>
+                        <p className="text-sm text-gray-400">Get AI feedback on your resume or CV.</p>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-200 mb-1">CV Analysis</h3>
-                  <p className="text-indigo-200/65 text-sm">Get AI feedback on your resume or CV.</p>
                 </Link>
-              </div>
-
-              {/* Job Analysis */}
-              <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10 transition-all duration-300 group">
-                <Link href="/dashboard/job-analysis" className="block p-6">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-indigo-600/20 mb-4 group-hover:bg-indigo-600/40 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-                      <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
-                    </svg>
+                {/* Job Analysis */}
+                <Link href="/job-analysis" className="group">
+                  <div className="border border-gray-600 rounded-lg p-4 transition-all duration-300 hover:border-indigo-500 hover:bg-gray-700 hover:shadow-md h-full">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 mr-3 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-white group-hover:text-indigo-300 transition-colors">Job Analysis</h3>
+                        <p className="text-sm text-gray-400">Analyze job descriptions for better interview prep.</p>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-200 mb-1">Job Analysis</h3>
-                  <p className="text-indigo-200/65 text-sm">Analyze job descriptions for better interview prep.</p>
                 </Link>
               </div>
             </div>
-
             {/* Usage Stats for Premium Users */}
             {userData?.hasActiveSubscription && (
-              <div className="mt-8">
-                <h2 className="text-xl font-semibold text-gray-200 mb-4">Your Activity</h2>
-                <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 backdrop-blur-sm">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-indigo-500/30 transition-all duration-300">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-400">Interviews</p>
-                        <div className="h-8 w-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M2 10a8 8 0 1116 0 8 8 0 01-16 0z" />
-                            <path d="M8 9a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                          </svg>
-                        </div>
+              <div className="bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700 transform transition-all duration-300 hover:shadow-lg">
+                <h2 className="text-lg font-semibold text-white mb-4">Your Activity</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="flex flex-col p-4 border border-gray-700 rounded-lg hover:border-indigo-500 transition-colors">
+                    <div className="flex items-center mb-2">
+                      <div className="w-8 h-8 rounded-full bg-blue-900 flex items-center justify-center text-blue-300 mr-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
                       </div>
-                      <p className="text-3xl font-bold text-white">0</p>
-                      <p className="text-xs text-gray-400 mt-1">0 this week</p>
+                      <span className="text-gray-300">Interviews</span>
                     </div>
-                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-indigo-500/30 transition-all duration-300">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-400">CV Analysis</p>
-                        <div className="h-8 w-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                          </svg>
-                        </div>
+                    <div className="text-2xl font-bold text-white">0</div>
+                    <div className="text-sm text-gray-400">0 this week</div>
+                  </div>
+                  
+                  <div className="flex flex-col p-4 border border-gray-700 rounded-lg hover:border-indigo-500 transition-colors">
+                    <div className="flex items-center mb-2">
+                      <div className="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center text-green-300 mr-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
                       </div>
-                      <p className="text-3xl font-bold text-white">0</p>
-                      <p className="text-xs text-gray-400 mt-1">0 this week</p>
+                      <span className="text-gray-300">CV Analysis</span>
                     </div>
-                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray700 hover:border-indigo-500/30 transition-all duration-300">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-400">Job Analysis</p>
-                        <div className="h-8 w-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2z" clipRule="evenodd" />
-                          </svg>
-                        </div>
+                    <div className="text-2xl font-bold text-white">0</div>
+                    <div className="text-sm text-gray-400">0 this week</div>
+                  </div>
+                  
+                  <div className="flex flex-col p-4 border border-gray-700 rounded-lg hover:border-indigo-500 transition-colors">
+                    <div className="flex items-center mb-2">
+                      <div className="w-8 h-8 rounded-full bg-purple-900 flex items-center justify-center text-purple-300 mr-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
                       </div>
-                      <p className="text-3xl font-bold text-white">0</p>
-                      <p className="text-xs text-gray-400 mt-1">0 this week</p>
+                      <span className="text-gray-300">Job Analysis</span>
                     </div>
+                    <div className="text-2xl font-bold text-white">0</div>
+                    <div className="text-sm text-gray-400">0 this week</div>
                   </div>
                 </div>
               </div>
             )}
-
             {/* Free User Credits */}
             {!userData?.hasActiveSubscription && (
-              <div className="mt-8">
-                <h2 className="text-xl font-semibold text-gray-200 mb-4">Your Credits</h2>
-                <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 backdrop-blur-sm shadow-lg shadow-gray-950/50">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                    <div className="mb-4 md:mb-0">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 rounded-lg bg-indigo-600/20 flex items-center justify-center mr-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-gray-400 text-sm">Available Credits</p>
-                          <p className="text-3xl font-bold text-white">{userData?.credits || 0}</p>
-                        </div>
-                      </div>
+              <div className="bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700 transform transition-all duration-300 hover:shadow-lg">
+                <h2 className="text-lg font-semibold text-white mb-4">Your Credits</h2>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-4 md:space-y-0">
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 rounded-full bg-yellow-900 flex items-center justify-center text-yellow-300 mr-4 shadow-md">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                     </div>
                     <div>
-                      <Link
-                        href="/dashboard/settings"
-                        className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-md hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 inline-block"
-                      >
-                        Get More Credits
-                      </Link>
+                      <h3 className="font-medium text-white">Available Credits</h3>
+                      <div className="text-3xl font-bold text-white">{userData?.credits || 0}</div>
                     </div>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-gray-800">
-                    <div className="flex items-center text-sm text-indigo-200/65">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                      </svg>
-                      <p>Credits are used for interview sessions, CV analysis, and job analysis. Each action costs 1 credit.</p>
-                    </div>
-                  </div>
+                  <Link href="/get-credits" className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-md flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Get More Credits
+                  </Link>
+                </div>
+                
+                <div className="bg-gray-700 rounded-md p-4 text-sm text-gray-300 border-l-4 border-indigo-500">
+                  <p>Credits are used for interview sessions, CV analysis, and job analysis. Each action costs 1 credit.</p>
                 </div>
               </div>
             )}
-
             {/* Recent Activity */}
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-200">Recent Activity</h2>
-                <Link href="/dashboard/history" className="text-sm text-indigo-400 hover:text-indigo-300">
+            <div className="bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700 transform transition-all duration-300 hover:shadow-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
+                <Link href="/activity" className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center">
                   View All
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </Link>
               </div>
               
-              <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 backdrop-blur-sm">
-                <div className="flex flex-col items-center justify-center py-6">
-                  <div className="h-16 w-16 rounded-full bg-gray-800 flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-400 text-lg mb-2">No recent activity</p>
-                  <p className="text-gray-500 text-sm text-center max-w-md">
-                    Start using InterviewAce AI by creating an interview session, analyzing your CV, or exploring job descriptions.
-                  </p>
+              <div className="border border-gray-600 rounded-lg p-8 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gray-700 rounded-full flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
                 </div>
+                <h3 className="text-lg font-medium text-white mb-2">No recent activity</h3>
+                <p className="text-gray-400 max-w-md mx-auto">
+                  Start using InterviewAce AI by creating an interview session, analyzing your CV, or exploring job descriptions.
+                </p>
               </div>
             </div>
-          </main>
-        </div>
+          </div>
+        </main>
       </div>
-
       {/* Premium Upgrade Modal - Only show for free-tier users */}
       {!userData?.hasActiveSubscription && showUpgradeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-gray-900 rounded-2xl max-w-2xl w-full mx-4 overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-gray-800 relative">
-              <h2 className="text-2xl font-bold text-white">Upgrade to Premium</h2>
-              <button 
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 relative border border-gray-700 animate-fadeIn">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-white mb-6">Upgrade to Premium</h2>
+              <button
                 onClick={() => setShowUpgradeModal(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-200 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-            </div>
-            
-            <div className="grid md:grid-cols-2 gap-6 p-6">
-              {/* Monthly Plan */}
-              <div className="bg-gray-800 rounded-xl p-6">
-                <h3 className="text-xl font-bold text-white mb-2">Monthly Plan</h3>
-                <p className="text-gray-400 mb-4">Billed monthly</p>
-                <div className="mb-4">
-                  <span className="text-4xl font-bold text-white">$60</span>
-                  <span className="text-gray-400">/month</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Monthly Plan */}
+                <div className="border border-gray-600 rounded-lg p-6 hover:border-indigo-500 transition-all duration-300 hover:shadow-lg">
+                  <h3 className="text-xl font-semibold text-white mb-2">Monthly Plan</h3>
+                  <p className="text-gray-400 mb-4">Billed monthly</p>
+                  <div className="text-3xl font-bold text-white mb-6">
+                    $60 <span className="text-base font-normal text-gray-400">/month</span>
+                  </div>
+                  <ul className="space-y-3 mb-6">
+                    <li className="flex items-center text-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      50 credits per month
+                    </li>
+                    <li className="flex items-center text-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Flexible credit usage
+                    </li>
+                  </ul>
+                  <Link href="/checkout/monthly" className="block w-full py-2 px-4 bg-indigo-600 text-center text-white rounded-md hover:bg-indigo-700 transition-colors font-medium shadow-md">
+                    Choose Monthly
+                  </Link>
                 </div>
-                <ul className="space-y-3 mb-6">
-                  <li className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    50 credits per month
-                  </li>
-                  <li className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Flexible credit usage
-                  </li>
-                </ul>
-                <button className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
-                  Choose Monthly
-                </button>
-              </div>
-
-              {/* Annual Plan */}
-              <div className="bg-gray-800 rounded-xl p-6 border-2 border-indigo-600">
-                <div className="absolute -top-3 right-4 bg-indigo-600 text-white px-3 py-1 rounded-full text-xs">
-                  Best Value
+                {/* Annual Plan */}
+                <div className="border-2 border-indigo-500 rounded-lg p-6 relative shadow-lg transform transition-transform duration-300 hover:scale-105">
+                  <div className="absolute top-0 right-0 bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
+                    Best Value
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-2">Annual Plan</h3>
+                  <p className="text-gray-400 mb-4">Billed yearly</p>
+                  <div className="text-3xl font-bold text-white mb-6">
+                    $300 <span className="text-base font-normal text-gray-400">/year</span>
+                  </div>
+                  <ul className="space-y-3 mb-6">
+                    <li className="flex items-center text-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      50 credits per month (600 total)
+                    </li>
+                    <li className="flex items-center text-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Save 20% compared to monthly
+                    </li>
+                    <li className="flex items-center text-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Flexible credit usage
+                    </li>
+                  </ul>
+                  <Link href="/checkout/annual" className="block w-full py-2 px-4 bg-indigo-600 text-center text-white rounded-md hover:bg-indigo-700 transition-colors font-medium shadow-md">
+                    Choose Annual
+                  </Link>
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Annual Plan</h3>
-                <p className="text-gray-400 mb-4">Billed yearly</p>
-                <div className="mb-4">
-                  <span className="text-4xl font-bold text-white">$300</span>
-                  <span className="text-gray-400">/year</span>
-                </div>
-                <ul className="space-y-3 mb-6">
-                  <li className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    50 credits per month (600 total)
-                  </li>
-                  <li className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Save 20% compared to monthly
-                  </li>
-                  <li className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Flexible credit usage
-                  </li>
-                </ul>
-                <button className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
-                  Choose Annual
-                </button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

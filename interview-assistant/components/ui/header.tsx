@@ -9,6 +9,7 @@ import { usePathname } from 'next/navigation';
 export default function Header() {
   const { user } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   
   // Hide header on dashboard routes
@@ -35,111 +36,157 @@ export default function Header() {
     };
   }, [isDashboardRoute]);
 
+  // Close mobile menu when changing routes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
   // Only return null AFTER all hooks have been called
   if (isDashboardRoute) {
     return null;
   }
 
+  const navItems = [
+    { name: 'Features', href: '/#workflows' },
+    { name: 'Pricing', href: '/#pricing' },
+    { name: 'Interview Coder', href: '/#interviewer' }
+  ];
+
   return (
     <header 
       className={`fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 ease-in-out ${
         isScrolled 
-          ? "py-2 backdrop-blur-lg" 
+          ? "py-2 backdrop-blur-lg bg-gray-900/90" 
           : "mt-2 md:mt-5"
       }`}
     >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div 
-          className={`relative flex h-14 items-center justify-between gap-3 rounded-2xl px-3 
-            before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border 
-            before:border-transparent before:[mask-composite:exclude_!important] before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] 
-            after:absolute after:inset-0 after:-z-10 after:backdrop-blur-xs
-            transition-all duration-300 ease-in-out ${
-              isScrolled 
-                ? "bg-gray-900/95 before:[background:linear-gradient(to_right,var(--color-gray-800),var(--color-gray-700),var(--color-gray-800))_border-box] shadow-lg" 
-                : "bg-gray-900/90 before:[background:linear-gradient(to_right,var(--color-gray-800),var(--color-gray-700),var(--color-gray-800))_border-box]"
-            }`}
+          className={`flex items-center justify-between rounded-xl transition-all duration-300 ${
+            isScrolled 
+              ? "h-16 shadow-lg border border-gray-700/50" 
+              : "h-16 border border-gray-700/30"
+          } bg-gray-800/90 backdrop-blur-sm px-4`}
         >
           {/* Site branding */}
-          <div className="flex flex-1 items-center">
-            <Logo />
-            <span className="ml-3 text-lg font-semibold text-gray-200">Interview Ace AI</span>
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <Logo />
+              <span className="ml-3 text-lg font-semibold text-white hidden sm:inline-block">
+                Interview Ace AI
+              </span>
+              <span className="ml-2 text-lg font-semibold text-white sm:hidden">
+                IA AI
+              </span>
+            </Link>
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <span className="sr-only">Open main menu</span>
+              {isMobileMenuOpen ? (
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+              )}
+            </button>
           </div>
 
           {/* Desktop navigation */}
-          <nav className="flex">
-            <ul className="flex items-center gap-4">
-              <li>
-                <Link 
-                  href="/#workflows" 
-                  className="text-sm text-indigo-200/65 hover:text-indigo-300 transition-colors duration-200"
-                >
-                  Features
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/#pricing" 
-                  className="text-sm text-indigo-200/65 hover:text-indigo-300 transition-colors duration-200"
-                >
-                  Pricing
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/#interviewer" 
-                  className="text-sm text-indigo-200/65 hover:text-indigo-300 transition-colors duration-200"
-                >
-                  Interview Coder
-                </Link>
-              </li>
+          <nav className="hidden md:flex items-center space-x-1">
+            <ul className="flex items-center space-x-6">
+              {navItems.map((item) => (
+                <li key={item.name}>
+                  <Link 
+                    href={item.href} 
+                    className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
+                  >
+                    {item.name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </nav>
 
           {/* Desktop sign in links or dashboard link */}
-          <ul className="flex flex-1 items-center justify-end gap-3">
+          <div className="hidden md:flex items-center space-x-4">
             {user ? (
-              <li>
+              <Link
+                href="/dashboard"
+                className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-md hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 font-medium text-sm"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/signin"
+                  className="text-sm font-medium text-gray-300 hover:text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/signup"
+                  className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-md hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 font-medium text-sm"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile menu, show/hide based on menu state */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden bg-gray-800 border-t border-gray-700">
+          <div className="space-y-1 px-4 py-3">
+            {navItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                {item.name}
+              </Link>
+            ))}
+            <div className="pt-4 pb-3 border-t border-gray-700">
+              {user ? (
                 <Link
                   href="/dashboard"
-                  className={`btn-sm bg-linear-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-[bottom] py-[5px] text-white 
-                    shadow-[inset_0px_1px_0px_0px_--theme(--color-white/.16)] hover:bg-[length:100%_150%] transition-all duration-300 ${
-                      isScrolled ? "hover:scale-105" : ""
-                    }`}
+                  className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md font-medium transition-colors duration-200"
                 >
                   Dashboard
                 </Link>
-              </li>
-            ) : (
-              <>
-                <li>
+              ) : (
+                <div className="flex flex-col space-y-2">
                   <Link
                     href="/signin"
-                    className={`btn-sm relative bg-linear-to-b from-gray-800 to-gray-800/60 bg-[length:100%_100%] bg-[bottom] py-[5px] text-gray-300 
-                      before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border before:border-transparent 
-                      before:[background:linear-gradient(to_right,var(--color-gray-800),var(--color-gray-700),var(--color-gray-800))_border-box] 
-                      before:[mask-composite:exclude_!important] before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] 
-                      hover:bg-[length:100%_150%] transition-all duration-300`}
+                    className="block text-center text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md transition-colors duration-200"
                   >
                     Login
                   </Link>
-                </li>
-                <li>
                   <Link
                     href="/signup"
-                    className={`btn-sm bg-linear-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-[bottom] py-[5px] text-white 
-                      shadow-[inset_0px_1px_0px_0px_--theme(--color-white/.16)] hover:bg-[length:100%_150%] transition-all duration-300 ${
-                        isScrolled ? "hover:scale-105" : ""
-                      }`}
+                    className="block text-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md font-medium transition-colors duration-200"
                   >
                     Sign Up
                   </Link>
-                </li>
-              </>
-            )}
-          </ul>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 }
