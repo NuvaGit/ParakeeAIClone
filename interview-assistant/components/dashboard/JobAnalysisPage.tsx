@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useAuth } from "@/firebase/auth";
+import Sidebar from "@/components/dashboard/Sidebar";
+
 
 export default function JobAnalysisPage() {
   const [jobUrl, setJobUrl] = useState("");
