@@ -8,7 +8,7 @@ import { usePathname } from 'next/navigation';
 
 export default function Header() {
   const { user } = useAuth();
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   
@@ -20,10 +20,11 @@ export default function Header() {
     if (isDashboardRoute) return;
     
     const handleScroll = () => {
-      if (window.scrollY > 10) {
-        setIsScrolled(true);
+      // When we scroll more than 80px, change the header style
+      if (window.scrollY > 80) {
+        setScrolled(true);
       } else {
-        setIsScrolled(false);
+        setScrolled(false);
       }
     };
 
@@ -95,22 +96,30 @@ export default function Header() {
 
   return (
     <header 
-      className={`fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 ease-in-out ${
-        isScrolled 
-          ? "py-2 backdrop-blur-lg bg-gray-900/90" 
-          : "mt-2 md:mt-5"
+      className={`fixed w-full z-50 transition-all duration-300 ${
+        scrolled 
+          ? "top-4" 
+          : "top-0"
       }`}
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <div 
+        className={`mx-auto transition-all duration-300 ${
+          scrolled ? "max-w-6xl px-4 sm:px-6 py-2" : "max-w-full px-0 py-0"
+        }`}
+      >
         <div 
-          className={`flex items-center justify-between rounded-xl transition-all duration-300 ${
-            isScrolled 
-              ? "h-16 shadow-lg border border-gray-700/50" 
-              : "h-16 border border-gray-700/30"
-          } bg-gray-800/90 backdrop-blur-sm px-4`}
+          className={`
+            flex items-center justify-between 
+            backdrop-blur-sm 
+            transition-all duration-300 ease-in-out
+            ${scrolled 
+              ? "h-14 rounded-xl border border-gray-700/50 shadow-lg bg-gray-800/90" 
+              : "h-16 rounded-none border-0 bg-transparent"
+            }
+          `}
         >
           {/* Site branding */}
-          <div className="flex items-center">
+          <div className="flex items-center px-4">
             <Link 
               href="/" 
               className="flex items-center"
@@ -122,17 +131,21 @@ export default function Header() {
               }}
             >
               <Logo />
-              <span className="ml-3 text-lg font-semibold text-white hidden sm:inline-block">
+              <span className={`ml-3 font-semibold hidden sm:inline-block transition-all duration-300 ${
+                scrolled ? "text-white text-base" : "text-gray-300 text-lg"
+              }`}>
                 Interview Ace AI
               </span>
-              <span className="ml-2 text-lg font-semibold text-white sm:hidden">
+              <span className={`ml-2 font-semibold sm:hidden transition-all duration-300 ${
+                scrolled ? "text-white text-lg" : "text-gray-300 text-lg"
+              }`}>
                 IA AI
               </span>
             </Link>
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden">
+          <div className="md:hidden px-4">
             <button
               type="button"
               className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
@@ -154,42 +167,39 @@ export default function Header() {
           {/* Desktop navigation */}
           <nav className="hidden md:flex items-center space-x-1">
             <ul className="flex items-center space-x-6">
-              <li>
-                <Link 
-                  href="/#features" 
-                  className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
-                  onClick={(e) => handleNavLinkClick(e, "features")}
-                >
-                  Features
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/#pricing" 
-                  className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
-                  onClick={(e) => handleNavLinkClick(e, "pricing")}
-                >
-                  Pricing
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/#interviewer" 
-                  className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
-                  onClick={(e) => handleNavLinkClick(e, "interviewer")}
-                >
-                  Interview Coder
-                </Link>
-              </li>
+              {navItems.map((item) => (
+                <li key={item.name}>
+                  <Link 
+                    href={item.href} 
+                    className={`
+                      text-sm font-medium px-3 py-2 rounded-md transition-all duration-300
+                      ${scrolled 
+                        ? "text-gray-300 hover:text-indigo-400 hover:bg-gray-700/50" 
+                        : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"
+                      }
+                    `}
+                    onClick={(e) => handleNavLinkClick(e, item.targetId)}
+                  >
+                    {item.name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </nav>
 
           {/* Desktop sign in links or dashboard link */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-4 px-4">
             {user ? (
               <Link
                 href="/dashboard"
-                className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-md hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 font-medium text-sm"
+                className={`
+                  font-medium text-sm px-4 py-2 rounded-md 
+                  transition-all duration-300
+                  ${scrolled 
+                    ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40" 
+                    : "bg-indigo-600/60 text-white hover:bg-indigo-600"
+                  }
+                `}
               >
                 Dashboard
               </Link>
@@ -197,13 +207,26 @@ export default function Header() {
               <>
                 <Link
                   href="/signin"
-                  className="text-sm font-medium text-gray-300 hover:text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200"
+                  className={`
+                    font-medium px-4 py-2 rounded-md transition-all duration-300
+                    ${scrolled 
+                      ? "text-gray-300 hover:text-white hover:bg-gray-700" 
+                      : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"
+                    }
+                  `}
                 >
                   Login
                 </Link>
                 <Link
                   href="/signup"
-                  className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-md hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 font-medium text-sm"
+                  className={`
+                    font-medium text-sm px-4 py-2 rounded-md 
+                    transition-all duration-300
+                    ${scrolled 
+                      ? "text-black bg-[#FFE100] hover:bg-[#FFC700]" 
+                      : "text-white bg-indigo-600/60 hover:bg-indigo-600"
+                    }
+                  `}
                 >
                   Sign Up
                 </Link>
@@ -215,53 +238,50 @@ export default function Header() {
 
       {/* Mobile menu, show/hide based on menu state */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-gray-800 border-t border-gray-700">
-          <div className="space-y-1 px-4 py-3">
-            <Link
-              href="/#features"
-              className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
-              onClick={(e) => handleNavLinkClick(e, "features")}
-            >
-              Features
-            </Link>
-            <Link
-              href="/#pricing"
-              className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
-              onClick={(e) => handleNavLinkClick(e, "pricing")}
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/#interviewer"
-              className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
-              onClick={(e) => handleNavLinkClick(e, "interviewer")}
-            >
-              Interview Coder
-            </Link>
-            <div className="pt-4 pb-3 border-t border-gray-700">
-              {user ? (
+        <div className="md:hidden mt-1 mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="bg-gray-800 rounded-lg border border-gray-700 shadow-lg overflow-hidden">
+            <div className="space-y-1 px-4 py-3">
+              {navItems.map((item) => (
                 <Link
-                  href="/dashboard"
-                  className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md font-medium transition-colors duration-200"
+                  key={item.name}
+                  href={item.href}
+                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                  onClick={(e) => handleNavLinkClick(e, item.targetId)}
                 >
-                  Dashboard
+                  {item.name}
                 </Link>
-              ) : (
-                <div className="flex flex-col space-y-2">
+              ))}
+              <div className="pt-4 pb-3 border-t border-gray-700">
+                {user ? (
                   <Link
-                    href="/signin"
-                    className="block text-center text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md transition-colors duration-200"
+                    href="/dashboard"
+                    className={`
+                      block w-full text-center font-medium px-3 py-2 rounded-md transition-all duration-300
+                      ${scrolled 
+                        ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
+                        : "bg-indigo-600/60 hover:bg-indigo-600 text-white"
+                      }
+                    `}
                   >
-                    Login
+                    Dashboard
                   </Link>
-                  <Link
-                    href="/signup"
-                    className="block text-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md font-medium transition-colors duration-200"
-                  >
-                    Sign Up
-                  </Link>
-                </div>
-              )}
+                ) : (
+                  <div className="flex flex-col space-y-2">
+                    <Link
+                      href="/signin"
+                      className="block text-center text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md transition-colors duration-200"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="block text-center bg-[#FFE100] hover:bg-[#FFC700] text-black px-3 py-2 rounded-md font-medium transition-colors duration-200"
+                    >
+                      Sign Up
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
