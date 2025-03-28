@@ -1,0 +1,1 @@
+the header doesnt work for when i clcik on pricing it doesnt take me down to pricing section like i want it too
