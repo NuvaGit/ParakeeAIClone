@@ -1,9 +1,8 @@
 // components/ui/logo.tsx
-import Link from "next/link";
 
 export default function Logo() {
   return (
-    <Link href="/" className="inline-flex shrink-0" aria-label="InterviewAce AI">
+    <div className="inline-flex shrink-0" aria-label="InterviewAce AI">
       <svg 
         width="32" 
         height="32" 
@@ -37,6 +36,6 @@ export default function Logo() {
           fillOpacity="0.8"
         />
       </svg>
-    </Link>
+    </div>
   );
 }

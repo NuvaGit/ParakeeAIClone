@@ -46,10 +46,51 @@ export default function Header() {
     return null;
   }
 
+  // Smooth scroll to section function with offset
+  const scrollToSection = (elementId: string) => {
+    const element = document.getElementById(elementId);
+    if (element) {
+      // Get the element's position
+      const elementRect = element.getBoundingClientRect();
+      const absoluteElementTop = elementRect.top + window.pageYOffset;
+      
+      // Calculate a position that's partway down the element (middle of the section)
+      // Adjust the offset percentage (0.2 means 20% down from the top of the section)
+      const offset = elementRect.height * 0.2;
+      const scrollPosition = absoluteElementTop - (window.innerHeight / 3) + offset;
+      
+      // Scroll to the adjusted position
+      window.scrollTo({
+        top: scrollPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const handleNavLinkClick = (e: React.MouseEvent, targetId: string) => {
+    // Only handle special case for home page sections
+    if (pathname === '/') {
+      e.preventDefault();
+      scrollToSection(targetId);
+    }
+  };
+
   const navItems = [
-    { name: 'Features', href: '/#workflows' },
-    { name: 'Pricing', href: '/#pricing' },
-    { name: 'Interview Coder', href: '/#interviewer' }
+    {
+      name: 'Features',
+      href: '/#features', 
+      targetId: 'features'
+    },
+    {
+      name: 'Pricing',
+      href: '/#pricing',
+      targetId: 'pricing'
+    },
+    {
+      name: 'Interview Coder',
+      href: '/#interviewer',
+      targetId: 'interviewer'
+    }
   ];
 
   return (
@@ -70,7 +111,16 @@ export default function Header() {
         >
           {/* Site branding */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center">
+            <Link 
+              href="/" 
+              className="flex items-center"
+              onClick={(e) => {
+                if (pathname === '/') {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+            >
               <Logo />
               <span className="ml-3 text-lg font-semibold text-white hidden sm:inline-block">
                 Interview Ace AI
@@ -104,16 +154,33 @@ export default function Header() {
           {/* Desktop navigation */}
           <nav className="hidden md:flex items-center space-x-1">
             <ul className="flex items-center space-x-6">
-              {navItems.map((item) => (
-                <li key={item.name}>
-                  <Link 
-                    href={item.href} 
-                    className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link 
+                  href="/#features" 
+                  className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
+                  onClick={(e) => handleNavLinkClick(e, "features")}
+                >
+                  Features
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  href="/#pricing" 
+                  className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
+                  onClick={(e) => handleNavLinkClick(e, "pricing")}
+                >
+                  Pricing
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  href="/#interviewer" 
+                  className="text-sm font-medium text-gray-300 hover:text-indigo-400 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700/50"
+                  onClick={(e) => handleNavLinkClick(e, "interviewer")}
+                >
+                  Interview Coder
+                </Link>
+              </li>
             </ul>
           </nav>
 
@@ -150,15 +217,27 @@ export default function Header() {
       {isMobileMenuOpen && (
         <div className="md:hidden bg-gray-800 border-t border-gray-700">
           <div className="space-y-1 px-4 py-3">
-            {navItems.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
-              >
-                {item.name}
-              </Link>
-            ))}
+            <Link
+              href="/#features"
+              className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+              onClick={(e) => handleNavLinkClick(e, "features")}
+            >
+              Features
+            </Link>
+            <Link
+              href="/#pricing"
+              className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+              onClick={(e) => handleNavLinkClick(e, "pricing")}
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/#interviewer"
+              className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+              onClick={(e) => handleNavLinkClick(e, "interviewer")}
+            >
+              Interview Coder
+            </Link>
             <div className="pt-4 pb-3 border-t border-gray-700">
               {user ? (
                 <Link
