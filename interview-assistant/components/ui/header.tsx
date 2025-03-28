@@ -14,11 +14,10 @@ export default function Header() {
   // Hide header on dashboard routes
   const isDashboardRoute = pathname?.startsWith('/dashboard');
   
-  if (isDashboardRoute) {
-    return null; // Don't render the header at all for dashboard routes
-  }
-
   useEffect(() => {
+    // Skip the effect logic if on dashboard route
+    if (isDashboardRoute) return;
+    
     const handleScroll = () => {
       if (window.scrollY > 10) {
         setIsScrolled(true);
@@ -34,7 +33,12 @@ export default function Header() {
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [isDashboardRoute]);
+
+  // Only return null AFTER all hooks have been called
+  if (isDashboardRoute) {
+    return null;
+  }
 
   return (
     <header 
