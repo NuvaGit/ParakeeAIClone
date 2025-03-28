@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/firebase/auth';
 import { useEffect, useState } from 'react';
+import { DashboardProvider } from '@/context/DashboardContext';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -22,12 +23,19 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   // Show loading state while checking auth or redirecting
   if (loading || !authorized) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-t-2 border-indigo-500 border-t-transparent"></div>
+      <div className="flex h-screen w-full items-center justify-center bg-gray-950">
+        <div className="flex flex-col items-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-3 border-t-3 border-indigo-500 border-t-transparent"></div>
+          <p className="mt-4 text-gray-400">Loading your dashboard...</p>
+        </div>
       </div>
     );
   }
 
-  // Only render children when authorized
-  return <>{children}</>;
+  // Only render children when authorized, wrapped in the dashboard context
+  return (
+    <DashboardProvider>
+      {children}
+    </DashboardProvider>
+  );
 }

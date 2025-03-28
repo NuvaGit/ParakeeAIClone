@@ -3,59 +3,18 @@
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/firebase/auth';
-import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/firebase/config';
-
-type UserData = {
-  hasActiveSubscription: boolean;
-  name: string;
-  email: string;
-  credits?: number;
-};
+import { useDashboard } from '@/context/DashboardContext';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const { userData } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data() as UserData);
-          }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, [user]);
 
   const handleLogout = async () => {
     await logout();
     router.push('/signin');
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen w-64 flex-col bg-gray-900 p-4">
-        <div className="flex items-center justify-center h-full">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-t-2 border-indigo-500 border-t-transparent"></div>
-        </div>
-      </div>
-    );
-  }
 
   const navItems = [
     {
