@@ -1,1 +1,1 @@
-the header doesnt work for when i clcik on pricing it doesnt take me down to pricing section like i want it too
+got cv analysis working but need to introduce admin.ts in firebase to set limits as somone could edit source code and exploit my software
