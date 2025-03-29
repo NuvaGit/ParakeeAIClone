@@ -1,20 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/firebase/auth";
 import Sidebar from "@/components/dashboard/Sidebar";
+
+interface AnalysisResults {
+  overview: string;
+  strengths: string[];
+  improvements: string[];
+  atsScore: number;
+  atsCompatibility: string;
+  keywordSuggestions: string[];
+  recommendedActions?: string[];
+}
 
 export default function CVAnalysisPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [targetRole, setTargetRole] = useState("");
-  const [analysisResults, setAnalysisResults] = useState<any>(null);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [error, setError] = useState<string | null>(null);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      
+      // Check file type
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!allowedTypes.includes(selectedFile.type)) {
+        setError("Please upload a PDF, DOC, or DOCX file");
+        return;
+      }
+      
+      // Check file size (5MB)
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        setError("File too large. Maximum size is 5MB");
+        return;
+      }
+      
+      setFile(selectedFile);
       setError(null);
     }
   };
@@ -46,7 +71,7 @@ export default function CVAnalysisPage() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Error: ${response.statusText}`);
+        throw new Error(errorData.error || `Error: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
@@ -66,6 +91,29 @@ export default function CVAnalysisPage() {
     setAnalysisResults(null);
     setTargetRole("");
     setError(null);
+  };
+
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const droppedFile = e.dataTransfer.files[0];
+      
+      // Check file type
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!allowedTypes.includes(droppedFile.type)) {
+        setError("Please upload a PDF, DOC, or DOCX file");
+        return;
+      }
+      
+      // Check file size (5MB)
+      if (droppedFile.size > 5 * 1024 * 1024) {
+        setError("File too large. Maximum size is 5MB");
+        return;
+      }
+      
+      setFile(droppedFile);
+      setError(null);
+    }
   };
 
   return (
@@ -100,12 +148,7 @@ export default function CVAnalysisPage() {
                 <div 
                   className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-700 border-dashed rounded-md transition-all duration-200 hover:border-indigo-500/50 hover:bg-indigo-950/20"
                   onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                      setFile(e.dataTransfer.files[0]);
-                    }
-                  }}
+                  onDrop={handleFileDrop}
                 >
                   <div className="space-y-1 text-center">
                     <svg
@@ -203,7 +246,7 @@ export default function CVAnalysisPage() {
 
               <h2 className="text-xl font-semibold text-gray-200 mb-4">CV Analysis Results</h2>
               
-              {/* Render actual analysis results if available, otherwise fallback to placeholders */}
+              {/* Render analysis results */}
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-medium text-gray-200 mb-2">Overview</h3>
@@ -218,7 +261,7 @@ export default function CVAnalysisPage() {
                 <div>
                   <h3 className="text-lg font-medium text-gray-200 mb-2">Strengths</h3>
                   <ul className="bg-gray-800/50 rounded p-4 border border-gray-700 shadow-inner space-y-2">
-                    {analysisResults?.strengths ? (
+                    {analysisResults?.strengths?.length ? (
                       analysisResults.strengths.map((strength: string, index: number) => (
                         <li key={index} className="flex items-start">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -228,26 +271,7 @@ export default function CVAnalysisPage() {
                         </li>
                       ))
                     ) : (
-                      <>
-                        <li className="flex items-start">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                          <span className="text-gray-300">Strong technical skills section with relevant technologies</span>
-                        </li>
-                        <li className="flex items-start">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                          <span className="text-gray-300">Clean, professional formatting</span>
-                        </li>
-                        <li className="flex items-start">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                          <span className="text-gray-300">Relevant education and certifications</span>
-                        </li>
-                      </>
+                      <li className="text-gray-400">No specific strengths identified</li>
                     )}
                   </ul>
                 </div>
@@ -255,7 +279,7 @@ export default function CVAnalysisPage() {
                 <div>
                   <h3 className="text-lg font-medium text-gray-200 mb-2">Areas for Improvement</h3>
                   <ul className="bg-gray-800/50 rounded p-4 border border-gray-700 shadow-inner space-y-2">
-                    {analysisResults?.improvements ? (
+                    {analysisResults?.improvements?.length ? (
                       analysisResults.improvements.map((improvement: string, index: number) => (
                         <li key={index} className="flex items-start">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -265,26 +289,7 @@ export default function CVAnalysisPage() {
                         </li>
                       ))
                     ) : (
-                      <>
-                        <li className="flex items-start">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          <span className="text-gray-300">Job descriptions focus on responsibilities rather than achievements</span>
-                        </li>
-                        <li className="flex items-start">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          <span className="text-gray-300">Missing quantifiable results and metrics</span>
-                        </li>
-                        <li className="flex items-start">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          <span className="text-gray-300">Professional summary could be more tailored to target role</span>
-                        </li>
-                      </>
+                      <li className="text-gray-400">No specific improvements suggested</li>
                     )}
                   </ul>
                 </div>
@@ -295,11 +300,15 @@ export default function CVAnalysisPage() {
                     <div className="flex items-center mb-2">
                       <div className="h-2 flex-1 bg-gray-700 rounded-full overflow-hidden">
                         <div 
-                          className="h-2 bg-gradient-to-r from-green-600 to-green-400 rounded-full" 
-                          style={{ width: `${analysisResults?.atsScore || 85}%` }}
+                          className={`h-2 rounded-full ${analysisResults?.atsScore && analysisResults.atsScore >= 80 
+                            ? 'bg-gradient-to-r from-green-600 to-green-400' 
+                            : analysisResults?.atsScore && analysisResults.atsScore >= 50 
+                            ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
+                            : 'bg-gradient-to-r from-red-600 to-red-400'}`}
+                          style={{ width: `${analysisResults?.atsScore || 0}%` }}
                         ></div>
                       </div>
-                      <span className="ml-4 text-gray-300 font-medium">{analysisResults?.atsScore || 85}%</span>
+                      <span className="ml-4 text-gray-300 font-medium">{analysisResults?.atsScore || 0}%</span>
                     </div>
                     <p className="text-gray-400 text-sm">
                       {analysisResults?.atsCompatibility || 
@@ -308,7 +317,7 @@ export default function CVAnalysisPage() {
                   </div>
                 </div>
 
-                {analysisResults?.keywordSuggestions && (
+                {analysisResults?.keywordSuggestions && analysisResults.keywordSuggestions.length > 0 && (
                   <div>
                     <h3 className="text-lg font-medium text-gray-200 mb-2">Keyword Suggestions</h3>
                     <div className="bg-gray-800/50 rounded p-4 border border-gray-700 shadow-inner">
@@ -320,6 +329,22 @@ export default function CVAnalysisPage() {
                         ))}
                       </div>
                     </div>
+                  </div>
+                )}
+                
+                {analysisResults?.recommendedActions && analysisResults.recommendedActions.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-200 mb-2">Recommended Actions</h3>
+                    <ul className="bg-gray-800/50 rounded p-4 border border-gray-700 shadow-inner space-y-2">
+                      {analysisResults.recommendedActions.map((action: string, index: number) => (
+                        <li key={index} className="flex items-start">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          <span className="text-gray-300">{action}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
@@ -334,7 +359,7 @@ export default function CVAnalysisPage() {
                 
                 <button
                   onClick={() => {
-                    // Here you would implement PDF download or export functionality
+                    // Export functionality placeholder
                     alert("This will download a PDF report in the full implementation");
                   }}
                   className="flex-1 bg-indigo-800 text-white hover:bg-indigo-700 py-2 px-4 rounded-md transition-colors duration-200 flex items-center justify-center gap-2"
