@@ -22,8 +22,8 @@ interface SpeechRecognitionResult {
 }
 
 export default function InterviewPage() {
-  const { user } = useAuth();
   const router = useRouter();
+  const { user } = useAuth();
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [interviewType, setInterviewType] = useState<InterviewType>("Technical Interview");
   const [company, setCompany] = useState("");
@@ -68,6 +68,14 @@ export default function InterviewPage() {
   
   // Scroll container for transcript
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
+
+  // Check if user is logged in
+  useEffect(() => {
+    if (!user) {
+      console.log("No user detected, redirecting to signin page");
+      router.push('/signin');
+    }
+  }, [user, router]);
 
   // Load hotkeys from localStorage
   useEffect(() => {
@@ -357,7 +365,7 @@ export default function InterviewPage() {
     setIsProcessingAI(true);
     
     try {
-      const response = await fetch('/api/interview', {
+      const response = await fetch('/api/interviewpage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -440,7 +448,7 @@ export default function InterviewPage() {
       }
       
       // Send screenshot to API for analysis
-      const response = await fetch('/api/interview', {
+      const response = await fetch('/api/interviewpage', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -486,7 +494,7 @@ export default function InterviewPage() {
     }
     
     try {
-      console.log("Continuing after permission granted...");
+      console.log("Continue button clicked - proceeding with interview start");
       
       // If we have an active stream, stop it now as SpeechRecognition will use the mic
       if (micStream) {
@@ -495,7 +503,7 @@ export default function InterviewPage() {
       }
       
       console.log("Creating interview session...");
-      // Create a new interview session in Firestore - wrap in try/catch to handle potential errors
+      // Create a new interview session in Firestore - wrap in try/catch for better error handling
       let interviewId;
       try {
         interviewId = await createInterviewSession(user.uid, {
@@ -511,13 +519,12 @@ export default function InterviewPage() {
         return;
       }
       
-      console.log("Interview session created with ID:", interviewId);
       setCurrentInterviewId(interviewId);
       setFullTranscript([]);
       setAiUsageCount(0);
       setInterviewStartTime(new Date());
       
-      // Start recording
+      // Start recording - do this before state changes to ensure proper setup
       console.log("Attempting to start speech recognition...");
       
       // Force refresh the recognition instances before starting
@@ -528,13 +535,19 @@ export default function InterviewPage() {
       const recordingStarted = startRecording();
       
       if (recordingStarted) {
-        console.log("Recording started successfully");
+        console.log("Recording started successfully - changing UI state");
+        // Change UI state AFTER successful recording start
         setIsInterviewStarted(true);
         setShowMicPermissionDialog(false);
         setMicPermissionGranted(false); // Reset for next time
         
         // Add initial system message to transcript
         addToTranscript(`System: Interview started for ${position || interviewType} at ${company || "Practice Interview"}`);
+        
+        // Force a re-render if needed
+        setTimeout(() => {
+          console.log("Interview started state:", isInterviewStarted);
+        }, 100);
       } else {
         // Handle case where recording couldn't start
         console.error("Failed to start recording even with permissions granted");
@@ -554,6 +567,7 @@ export default function InterviewPage() {
   const startInterview = async () => {
     if (!user) {
       alert("You need to be logged in to start an interview!");
+      router.push('/signin');
       return;
     }
     
@@ -675,9 +689,9 @@ export default function InterviewPage() {
     setShowCompletionDialog(false);
     setIsInterviewStarted(false);
     
-    // Navigate to history page with more explicit error handling
+    console.log("Navigating to history page...");
+    // Navigate to history page with explicit error handling
     try {
-      console.log("Attempting to navigate to history page...");
       router.push('/dashboard/history');
     } catch (error) {
       console.error("Navigation error:", error);
@@ -690,6 +704,8 @@ export default function InterviewPage() {
   const isSpeechRecognitionSupported = typeof window !== 'undefined' && !!(
     (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
   );
+
+  console.log("Current interview state:", { isInterviewStarted, showMicPermissionDialog, micPermissionGranted });
 
   return (
     <div className="flex h-screen bg-gray-950">
@@ -856,7 +872,7 @@ export default function InterviewPage() {
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2h2a1 1 0 000-2H9z" clipRule="evenodd" />
                       </svg>
                       <p className="text-sm text-yellow-200/80">
-                        This tool uses Google Translate's capabilities to transcribe both sides of the conversation. 
+                        This tool uses speech recognition capabilities to transcribe both sides of the conversation. 
                         For best results, ensure your microphone can clearly pick up both your voice and the interviewer's voice 
                         from your speakers. In virtual interviews (Zoom, Teams, etc.), this works best with headphones.
                       </p>
