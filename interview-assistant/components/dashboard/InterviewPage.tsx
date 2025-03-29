@@ -6,6 +6,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import { createInterviewSession, completeInterviewSession, addInterviewQuestion } from '@/firebase/interviews';
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
+import html2canvas from 'html2canvas';
 
 export default function InterviewPage() {
   const { user } = useAuth();
@@ -20,10 +21,74 @@ export default function InterviewPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [aiUsageCount, setAiUsageCount] = useState(0);
   const [interviewStartTime, setInterviewStartTime] = useState<Date | null>(null);
+  const [hotkeys, setHotkeys] = useState({
+    activateAI: 'Space',
+    hideOverlay: 'Escape',
+    nextSuggestion: 'Tab',
+    useSuggestion: 'Enter',
+    takeScreenshot: 'F2'
+  });
+  
+  // For transcript management
+  const [fullTranscript, setFullTranscript] = useState<string[]>([]);
+  const [currentAIResponse, setCurrentAIResponse] = useState<string>("");
+  const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [showAIResponse, setShowAIResponse] = useState(false);
   
   // Refs for speech recognition
   const recognitionRef = useRef<any>(null);
+  const interviewerRecognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
+  const isInterviewerListeningRef = useRef(false);
+
+  // Load hotkeys from localStorage
+  useEffect(() => {
+    const savedHotkeys = localStorage.getItem('hotkeys');
+    if (savedHotkeys) {
+      try {
+        const parsedHotkeys = JSON.parse(savedHotkeys);
+        if (parsedHotkeys) {
+          // Ensure we have the screenshot hotkey, add it if not
+          if (!parsedHotkeys.takeScreenshot) {
+            parsedHotkeys.takeScreenshot = 'F2';
+            localStorage.setItem('hotkeys', JSON.stringify(parsedHotkeys));
+          }
+          setHotkeys(parsedHotkeys);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved hotkeys:', e);
+      }
+    }
+  }, []);
+
+  // Setup keyboard event listeners for hotkeys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isInterviewStarted) return;
+
+      // Don't trigger hotkeys if user is typing in a form field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // Check for hotkeys
+      if (e.key === hotkeys.activateAI || e.code === hotkeys.activateAI) {
+        e.preventDefault();
+        getAIResponse();
+      } else if (e.key === hotkeys.hideOverlay || e.code === hotkeys.hideOverlay) {
+        e.preventDefault();
+        setShowAIResponse(!showAIResponse);
+      } else if (e.key === hotkeys.takeScreenshot || e.code === hotkeys.takeScreenshot) {
+        e.preventDefault();
+        takeScreenshot();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isInterviewStarted, hotkeys, showAIResponse, fullTranscript]);
 
   // Memoize the speech recognition setup
   const setupSpeechRecognition = useCallback(() => {
@@ -35,48 +100,95 @@ export default function InterviewPage() {
                                     null;
       
       if (SpeechRecognitionAPI) {
+        // For the user's speech
         const recognition = new SpeechRecognitionAPI();
         recognition.continuous = true;
         recognition.interimResults = true;
+        recognition.lang = 'en-US'; // Set language to English
         
         recognition.onresult = (event: any) => {
           let interimTranscript = '';
-          let finalTranscript = transcript;
+          let finalTranscript = '';
           
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
               finalTranscript += event.results[i][0].transcript + ' ';
-              
-              // Here we'd call the AI to generate responses
-              if (autoResponse) {
-                simulateAIResponse(event.results[i][0].transcript);
-              }
+              // Add to full transcript with speaker identification
+              addToTranscript("You: " + event.results[i][0].transcript);
             } else {
               interimTranscript += event.results[i][0].transcript;
             }
           }
           
-          setTranscript(finalTranscript);
+          if (finalTranscript) {
+            setTranscript(prev => prev + finalTranscript);
+          }
         };
         
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error', event.error);
         };
 
-        return recognition;
+        // For the interviewer's speech (second recognition instance)
+        const interviewerRecognition = new SpeechRecognitionAPI();
+        interviewerRecognition.continuous = true;
+        interviewerRecognition.interimResults = true;
+        interviewerRecognition.lang = 'en-US';
+        
+        interviewerRecognition.onresult = (event: any) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript + ' ';
+              // Add to full transcript with speaker identification
+              addToTranscript("Interviewer: " + event.results[i][0].transcript);
+              
+              // Auto-trigger AI response if enabled
+              if (autoResponse) {
+                getAIResponse();
+              }
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+          
+          if (finalTranscript) {
+            setTranscript(prev => prev + "Interviewer: " + finalTranscript + "\n");
+          }
+        };
+        
+        interviewerRecognition.onerror = (event: any) => {
+          console.error('Interviewer speech recognition error', event.error);
+        };
+
+        return {
+          userRecognition: recognition,
+          interviewerRecognition: interviewerRecognition
+        };
       }
     }
-    return null;
-  }, [transcript, autoResponse]);
+    return { userRecognition: null, interviewerRecognition: null };
+  }, [autoResponse]);
+
+  const addToTranscript = (text: string) => {
+    setFullTranscript(prev => [...prev, text]);
+  };
 
   useEffect(() => {
     // Setup speech recognition
-    recognitionRef.current = setupSpeechRecognition();
+    const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
+    recognitionRef.current = userRecognition;
+    interviewerRecognitionRef.current = interviewerRecognition;
     
     // Cleanup function 
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
+      }
+      if (interviewerRecognitionRef.current) {
+        interviewerRecognitionRef.current.stop();
       }
     };
   }, [setupSpeechRecognition]);
@@ -85,6 +197,13 @@ export default function InterviewPage() {
     if (recognitionRef.current && !isListeningRef.current) {
       recognitionRef.current.start();
       isListeningRef.current = true;
+      
+      // Start the interviewer recognition as well
+      if (interviewerRecognitionRef.current && !isInterviewerListeningRef.current) {
+        interviewerRecognitionRef.current.start();
+        isInterviewerListeningRef.current = true;
+      }
+      
       setIsRecording(true);
     }
   };
@@ -93,25 +212,127 @@ export default function InterviewPage() {
     if (recognitionRef.current && isListeningRef.current) {
       recognitionRef.current.stop();
       isListeningRef.current = false;
+      
+      // Stop the interviewer recognition as well
+      if (interviewerRecognitionRef.current && isInterviewerListeningRef.current) {
+        interviewerRecognitionRef.current.stop();
+        isInterviewerListeningRef.current = false;
+      }
+      
       setIsRecording(false);
     }
   };
+
+  // Function to take a screenshot
+  const takeScreenshot = async () => {
+    try {
+      setIsProcessingAI(true);
+      
+      // Use html2canvas to capture the screen
+      const canvas = await html2canvas(document.body);
+      const screenshotDataUrl = canvas.toDataURL('image/png');
+      
+      // Send screenshot to API for analysis
+      const response = await fetch('/api/interviewpage', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          screenshotData: screenshotDataUrl,
+          company,
+          position,
+          interviewType
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Update AI response
+      setCurrentAIResponse(data.aiResponse || "No insights could be generated from the screenshot.");
+      setShowAIResponse(true);
+      
+      // Increment AI usage counter
+      setAiUsageCount(prev => prev + 1);
+      
+      // Log this activity in the transcript
+      addToTranscript("System: Screenshot taken and analyzed by AI");
+      
+    } catch (error) {
+      console.error("Error taking or analyzing screenshot:", error);
+      setCurrentAIResponse("Sorry, I couldn't analyze the screenshot at this time.");
+    } finally {
+      setIsProcessingAI(false);
+    }
+  };
   
-  // Simulate AI response (placeholder for now)
-  const simulateAIResponse = (question: string) => {
-    // Just a simple placeholder for now
-    // Later, this would call your AI service
-    console.log("AI received question:", question);
-    setAiUsageCount(prev => prev + 1);
+  // Get AI response from the transcript using the API
+  const getAIResponse = async () => {
+    if (isProcessingAI || fullTranscript.length === 0) return;
     
-    // Simulate storing the question and response in Firestore
-    if (currentInterviewId) {
-      addInterviewQuestion(currentInterviewId, {
-        question,
-        answer: "User's answer would go here",
-        aiSuggestion: "AI suggested response would go here",
-      })
-      .catch(error => console.error("Error adding question:", error));
+    setIsProcessingAI(true);
+    
+    try {
+      const response = await fetch('/api/interviewpage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcript: fullTranscript,
+          company,
+          position,
+          interviewType,
+          contextLines: 5 // Get the last 5 lines for context
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      setCurrentAIResponse(data.aiResponse || "");
+      setShowAIResponse(true);
+      
+      // Store the AI suggestion with the question
+      if (currentInterviewId && data.aiResponse) {
+        // Extract the last question from the interviewer
+        const lastInterviewerQuestion = fullTranscript
+          .filter(line => line.startsWith("Interviewer:"))
+          .pop()
+          ?.replace("Interviewer:", "")
+          .trim();
+          
+        // Extract the last answer from the user
+        const lastUserAnswer = fullTranscript
+          .filter(line => line.startsWith("You:"))
+          .pop()
+          ?.replace("You:", "")
+          .trim();
+        
+        if (lastInterviewerQuestion) {
+          await addInterviewQuestion(currentInterviewId, {
+            question: lastInterviewerQuestion,
+            answer: lastUserAnswer || "",
+            aiSuggestion: data.aiResponse
+          });
+        }
+      }
+      
+      // Increment AI usage counter
+      setAiUsageCount(prev => prev + 1);
+      
+    } catch (error) {
+      console.error("Error getting AI response:", error);
+      setCurrentAIResponse("Sorry, I couldn't generate a response at this time.");
+    } finally {
+      setIsProcessingAI(false);
     }
   };
   
@@ -127,12 +348,17 @@ export default function InterviewPage() {
       
       setCurrentInterviewId(interviewId);
       setTranscript("");
+      setFullTranscript([]);
       setAiUsageCount(0);
       setInterviewStartTime(new Date());
       setIsInterviewStarted(true);
       
       // Start recording
       startRecording();
+      
+      // Add initial system message to transcript
+      addToTranscript(`System: Interview started for ${position || interviewType} at ${company || "Practice Interview"}`);
+      
     } catch (error) {
       console.error("Error starting interview:", error);
     }
@@ -150,13 +376,41 @@ export default function InterviewPage() {
       const durationMs = endTime.getTime() - interviewStartTime.getTime();
       const durationMinutes = Math.round(durationMs / 60000);
       
+      // Get interview feedback from the API
+      let feedback = "Interview completed successfully";
+      let calculatedScore = 75; // Default score
+      
+      try {
+        const response = await fetch('/api/interviewpage', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fullTranscript,
+            company,
+            position,
+            interviewType,
+            duration: durationMinutes
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          feedback = data.feedback || feedback;
+          calculatedScore = data.score || calculatedScore;
+        }
+      } catch (error) {
+        console.error("Error generating interview feedback:", error);
+      }
+      
       // Update the interview session with final details
       await completeInterviewSession(currentInterviewId, {
         duration: `${durationMinutes} minutes`,
         aiUsage: aiUsageCount,
-        score: Math.floor(Math.random() * 30) + 70, // Random score between 70-100 for demo
-        feedback: "Interview completed successfully",
-        transcript: transcript
+        score: calculatedScore,
+        feedback: feedback,
+        transcript: fullTranscript.join("\n")
       });
       
       setIsInterviewStarted(false);
@@ -232,50 +486,6 @@ export default function InterviewPage() {
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <input
-                          id="company"
-                          type="text"
-                          value={company}
-                          onChange={(e) => setCompany(e.target.value)}
-                          className="w-full pl-10 form-input bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
-                          placeholder="Company name"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Position Input */}
-                    <div>
-                      <label htmlFor="position" className="block text-sm font-medium text-indigo-200 mb-2">
-                        Position (Optional)
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <input
-                          id="position"
-                          type="text"
-                          value={position}
-                          onChange={(e) => setPosition(e.target.value)}
-                          className="w-full pl-10 form-input bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
-                          placeholder="Position title"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Interview Type Select */}
-                    <div>
-                      <label htmlFor="interview-type" className="block text-sm font-medium text-indigo-200 mb-2">
-                        Interview Type
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M9 4h6a2 2 0 012 2v14a2 2 0 01-2 2H9a2 2 0 01-2-2V6a2 2 0 012-2z" />
                           </svg>
                         </div>
@@ -332,16 +542,20 @@ export default function InterviewPage() {
                       <h3 className="text-lg font-semibold text-indigo-300 mb-3">How It Works</h3>
                       <div className="text-indigo-200/85 space-y-3">
                         <p>
-                          When you start the interview, we'll use your microphone to listen to your conversation. Our AI will analyze the dialogue in real-time to provide optimal responses.
+                          When you start the interview, we'll use your microphone to listen to both you and your interviewer. Our AI will analyze the dialogue in real-time to provide optimal responses.
                         </p>
                         <div className="flex flex-wrap gap-4 mt-2">
                           <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
-                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">Space</span>
+                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.activateAI}</span>
                             <span className="text-sm">Activate AI assistance</span>
                           </div>
                           <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
-                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">Esc</span>
+                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.hideOverlay}</span>
                             <span className="text-sm">Hide AI overlay</span>
+                          </div>
+                          <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
+                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.takeScreenshot}</span>
+                            <span className="text-sm">Take screenshot</span>
                           </div>
                         </div>
                       </div>
@@ -374,6 +588,20 @@ export default function InterviewPage() {
                         <div className="h-3 w-3 bg-indigo-500 rounded-full mr-2"></div>
                         <span className="text-sm text-gray-400">Secure Session</span>
                       </div>
+                    </div>
+                  </div>
+                  
+                  {/* Note about recording both sides */}
+                  <div className="mt-6 bg-yellow-900/20 rounded-lg p-4 border border-yellow-800/30">
+                    <div className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2h2a1 1 0 000-2H9z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-sm text-yellow-200/80">
+                        This tool uses Google Translate's capabilities to transcribe both sides of the conversation. 
+                        For best results, ensure your microphone can clearly pick up both your voice and the interviewer's voice 
+                        from your speakers. In virtual interviews (Zoom, Teams, etc.), this works best with headphones.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -419,8 +647,9 @@ export default function InterviewPage() {
                     
                     <div className="mt-4 bg-gray-800/50 p-3 rounded-lg border border-gray-700/50">
                       <p className="text-indigo-200/80 text-sm">
-                        Press <span className="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs font-mono">Space</span> to 
-                        activate AI assistance during your interview. Press <span className="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs font-mono">Esc</span> to hide the AI overlay.
+                        Press <span className="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs font-mono">{hotkeys.activateAI}</span> to 
+                        activate AI assistance during your interview. Press <span className="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs font-mono">{hotkeys.hideOverlay}</span> to hide the AI overlay.
+                        Press <span className="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs font-mono">{hotkeys.takeScreenshot}</span> to capture and analyze the screen.
                       </p>
                     </div>
                   </div>
@@ -440,8 +669,28 @@ export default function InterviewPage() {
                     </div>
                     
                     <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50 h-64 overflow-y-auto">
-                      {transcript ? (
-                        <p className="text-gray-300 whitespace-pre-line">{transcript}</p>
+                      {fullTranscript.length > 0 ? (
+                        <div className="text-gray-300 space-y-2">
+                          {fullTranscript.map((line, index) => {
+                            // Format different speakers with different styles
+                            let className = "text-gray-300";
+                            if (line.startsWith("Interviewer:")) {
+                              className = "text-blue-300";
+                            } else if (line.startsWith("You:")) {
+                              className = "text-green-300";
+                            } else if (line.startsWith("System:")) {
+                              className = "text-gray-400 text-sm italic";
+                            }
+                            
+                            return (
+                              <p key={index} className={className}>
+                                {line}
+                              </p>
+                            );
+                          })}
+                          {/* Auto-scroll to bottom */}
+                          <div className="float-left h-0" id="transcript-end"></div>
+                        </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -491,25 +740,70 @@ export default function InterviewPage() {
                         </>
                       )}
                     </button>
+                    
+                    <button 
+                      onClick={getAIResponse}
+                      disabled={isProcessingAI || fullTranscript.length === 0}
+                      className="px-6 py-3 bg-gradient-to-r from-indigo-600/20 to-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:from-indigo-600/30 hover:to-indigo-500/30 rounded-lg transition-all duration-300 font-medium flex items-center disabled:opacity-50"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Get AI Suggestion
+                    </button>
                   </div>
                   
-                  {/* AI Response Preview (mockup) */}
-                  <div className="mt-6 border border-indigo-500/20 rounded-lg p-4 bg-indigo-950/20 backdrop-blur-sm overflow-hidden">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-medium text-indigo-300 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  {/* AI Response Area */}
+                  {showAIResponse && (
+                    <div className="mt-6 border border-indigo-500/30 rounded-lg p-4 bg-indigo-950/20 backdrop-blur-sm overflow-hidden relative">
+                      <button
+                        onClick={() => setShowAIResponse(false)}
+                        className="absolute top-2 right-2 text-gray-400 hover:text-white"
+                        aria-label="Close AI response"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
-                        AI Response Preview
-                      </h3>
+                      </button>
+                      
+                      <div className="flex items-center mb-3">
+                        <div className="bg-indigo-600/40 w-8 h-8 rounded-full flex items-center justify-center mr-3">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-md font-medium text-indigo-300">AI Suggested Response</h3>
+                      </div>
+                      
+                      <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+                        {isProcessingAI ? (
+                          <div className="flex items-center justify-center py-4">
+                            <div className="h-5 w-5 mr-3 animate-spin rounded-full border-2 border-t-2 border-indigo-500 border-t-transparent"></div>
+                            <span className="text-gray-400">Generating response...</span>
+                          </div>
+                        ) : (
+                          <p className="text-white">{currentAIResponse}</p>
+                        )}
+                      </div>
+                      
+                      <div className="mt-3 text-xs text-gray-500">
+                        Press <span className="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded text-xs font-mono">{hotkeys.hideOverlay}</span> to hide this overlay
+                      </div>
                     </div>
-                    <div className="text-gray-300 text-sm">
-                      {transcript ? (
-                        <p>Ready to provide assistance based on your conversation.</p>
-                      ) : (
-                        <p className="text-gray-500 italic">AI responses will appear here when the interview begins...</p>
-                      )}
-                    </div>
+                  )}
+                  
+                  {/* Screenshot suggestion area */}
+                  <div className="mt-4 text-center">
+                    <button
+                      onClick={takeScreenshot}
+                      className="inline-flex items-center text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Take screenshot for AI analysis (or press {hotkeys.takeScreenshot})
+                    </button>
                   </div>
                 </div>
               </div>
@@ -518,5 +812,5 @@ export default function InterviewPage() {
         </main>
       </div>
     </div>
-  );
+  );                         
 }
