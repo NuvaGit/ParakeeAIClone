@@ -1,12 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /interviews/{interviewId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-    }
-    match /questions/{questionId} {
-      allow read, write: if request.auth != null && 
-        get(/databases/$(database)/documents/interviews/$(resource.data.interviewId)).data.userId == request.auth.uid;
+    // For testing only - change this in production!
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
