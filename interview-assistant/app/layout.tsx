@@ -1,7 +1,9 @@
+// app/layout.tsx - Updated with Footer
 import "@/app/css/style.css";
 import { Inter } from "next/font/google";
 import localFont from "next/font/local";
 import Header from "@/components/ui/header";
+import Footer from "@/components/ui/footer"; // Added Footer import
 import { AuthProvider } from "@/firebase/auth";
 
 
@@ -55,9 +57,9 @@ export default function RootLayout({
       >
         <AuthProvider>
           <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
-            {/* The Header component will be included in main layout, but we'll modify the Header component to conditionally show based on route */}
             <Header />
             {children}
+            <Footer /> {/* Added Footer component */}
           </div>
         </AuthProvider>
       </body>
