@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     // Call OpenAI API with the file contents
     const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
+      model: "gpt-4-turbo",
       messages: [
         {
           role: "system",
