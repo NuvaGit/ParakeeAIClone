@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
 // 🔹 Firebase Config from Environment Variables
@@ -20,21 +20,11 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const functions = getFunctions(app);
 
-// 🔹 Firestore Setup with simplified persistence approach
+// 🔹 Firestore initialization (simplified)
 const db = getFirestore(app);
 
-// Enable persistence only in browser environment with proper error handling
-if (typeof window !== "undefined") {
-  enableIndexedDbPersistence(db)
-    .catch((err) => {
-      console.error("Firestore persistence error:", err);
-      if (err.code === 'failed-precondition') {
-        console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-      } else if (err.code === 'unimplemented') {
-        console.warn('The current browser does not support persistence.');
-      }
-    });
-}
+// Note: As of Firebase v9+, offline persistence is enabled by default
+// for web applications, so explicit enableIndexedDbPersistence is no longer needed
 
 // 🔹 Export Firebase Services
 export { app, auth, db, functions };
