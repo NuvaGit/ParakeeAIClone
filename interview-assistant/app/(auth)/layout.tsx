@@ -42,23 +42,15 @@ export const metadata = {
   description: "AI-powered interview assistance",
 };
 
-export default function RootLayout({
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body
-        className={`${inter.variable} ${nacelle.variable} bg-gray-950 font-inter text-base text-gray-200 antialiased`}
-      >
-        <AuthProvider>
-          <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
-            <Header />
-            {children}
-          </div>
-        </AuthProvider>
-      </body>
-    </html>
+    <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
+      <Header />
+      {children}
+    </div>
   );
 }
