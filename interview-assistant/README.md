@@ -1,2 +1,2 @@
-firebase issues reolved i next need to get this interview thing working 
-
+work further on interview fucntionality almost done 
+i also have to finsh web scraper 
