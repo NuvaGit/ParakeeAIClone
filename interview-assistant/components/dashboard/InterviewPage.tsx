@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/firebase/auth";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -49,18 +47,18 @@ export default function InterviewPage() {
     useSuggestion: 'Enter',
     takeScreenshot: 'F2'
   });
-  
+
   // CV upload state
   const [cv, setCV] = useState<CVData | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showCVPreview, setShowCVPreview] = useState(false);
-  
+
   // Dialog states
   const [showMicPermissionDialog, setShowMicPermissionDialog] = useState(false);
   const [showEndInterviewDialog, setShowEndInterviewDialog] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [interviewFeedback, setInterviewFeedback] = useState<{ score: number; feedback: string } | null>(null);
-  
+
   // For transcript management
   const [fullTranscript, setFullTranscript] = useState<string[]>([]);
   const [interimText, setInterimText] = useState<string>('');
@@ -68,22 +66,22 @@ export default function InterviewPage() {
   const [currentAIResponse, setCurrentAIResponse] = useState<string>("");
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [showAIResponse, setShowAIResponse] = useState(false);
-  
+
   // Testing visualization states
   const [showTranscriptTesting, setShowTranscriptTesting] = useState(true);
   const [lastProcessedTime, setLastProcessedTime] = useState<Date | null>(null);
-  
+
   // Add state for tracking if permission is granted
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
   // Add active stream state to properly clean up
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
-  
+
   // Refs for speech recognition
   const recognitionRef = useRef<any>(null);
   const interviewerRecognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
   const isInterviewerListeningRef = useRef(false);
-  
+
   // Scroll container for transcript
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   // Time-based context tracking
@@ -91,6 +89,9 @@ export default function InterviewPage() {
 
   // File input ref for CV upload
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Flag to prevent multiple recognition starts
+  const recognitionStartingRef = useRef(false);
 
   // Check if user is logged in
   useEffect(() => {
@@ -166,15 +167,43 @@ export default function InterviewPage() {
     }
   }, [fullTranscript, interimText]);
 
-  // Memoize the speech recognition setup
+  // Clean up speech recognition when component unmounts
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.warn("Error stopping recognition during cleanup:", e);
+        }
+        isListeningRef.current = false;
+      }
+      
+      if (interviewerRecognitionRef.current) {
+        try {
+          interviewerRecognitionRef.current.stop();
+        } catch (e) {
+          console.warn("Error stopping interviewer recognition during cleanup:", e);
+        }
+        isInterviewerListeningRef.current = false;
+      }
+      
+      // Clean up any active media streams
+      if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [micStream]);
+
+  // Memoize the speech recognition setup - improved for stability
   const setupSpeechRecognition = useCallback(() => {
     console.log("Setting up speech recognition...");
     // Only run this in browser environment
     if (typeof window !== 'undefined') {
       // Define SpeechRecognition with proper type handling
       const SpeechRecognitionAPI = (window as any).SpeechRecognition || 
-                                    (window as any).webkitSpeechRecognition || 
-                                    null;
+                                   (window as any).webkitSpeechRecognition || 
+                                   null;
       
       if (!SpeechRecognitionAPI) {
         console.error("SpeechRecognition API not available in this browser");
@@ -192,18 +221,31 @@ export default function InterviewPage() {
         
         recognition.onstart = () => {
           console.log("User speech recognition started");
+          isListeningRef.current = true;
+          recognitionStartingRef.current = false;
         };
         
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error', event.error);
+          if (event.error === 'aborted') {
+            console.log("Recognition was deliberately aborted, not restarting");
+            isListeningRef.current = false;
+            return;
+          }
+          
           // Auto-restart on error if we were supposed to be listening
-          if (isListeningRef.current && event.error !== 'aborted' && event.error !== 'no-speech') {
+          if (isListeningRef.current && event.error !== 'no-speech') {
             console.log("Attempting to restart user recognition after error");
             setTimeout(() => {
-              try {
-                recognition.start();
-              } catch (e) {
-                console.error("Failed to restart recognition:", e);
+              if (isListeningRef.current && !recognitionStartingRef.current) {
+                try {
+                  recognitionStartingRef.current = true;
+                  recognition.start();
+                } catch (e) {
+                  console.error("Failed to restart recognition:", e);
+                  recognitionStartingRef.current = false;
+                  isListeningRef.current = false;
+                }
               }
             }, 1000);
           }
@@ -212,20 +254,24 @@ export default function InterviewPage() {
         recognition.onend = () => {
           console.log("User speech recognition ended");
           // Auto-restart if we were supposed to be listening
-          if (isListeningRef.current) {
+          if (isListeningRef.current && !recognitionStartingRef.current) {
             console.log("Restarting user recognition as it ended unexpectedly");
             setTimeout(() => {
-              try {
-                recognition.start();
-              } catch (e) {
-                console.error("Failed to restart recognition:", e);
-                isListeningRef.current = false;
+              if (isListeningRef.current && !recognitionStartingRef.current) {
+                try {
+                  recognitionStartingRef.current = true;
+                  recognition.start();
+                } catch (e) {
+                  console.error("Failed to restart recognition:", e);
+                  recognitionStartingRef.current = false;
+                  isListeningRef.current = false;
+                }
               }
-            }, 500);
+            }, 1000);
           }
         };
         
-                  recognition.onresult = (event: any) => {
+        recognition.onresult = (event: any) => {
           let interimTranscript = '';
           let finalTranscript = '';
           
@@ -253,10 +299,30 @@ export default function InterviewPage() {
         
         interviewerRecognition.onstart = () => {
           console.log("Interviewer speech recognition started");
+          isInterviewerListeningRef.current = true;
         };
         
         interviewerRecognition.onerror = (event: any) => {
           console.error('Interviewer speech recognition error', event.error);
+          if (event.error === 'aborted') {
+            console.log("Interviewer recognition deliberately aborted, not restarting");
+            isInterviewerListeningRef.current = false;
+            return;
+          }
+          
+          // Auto-restart on error if still supposed to be listening
+          if (isInterviewerListeningRef.current && event.error !== 'no-speech') {
+            setTimeout(() => {
+              if (isInterviewerListeningRef.current) {
+                try {
+                  interviewerRecognition.start();
+                } catch (e) {
+                  console.error("Failed to restart interviewer recognition:", e);
+                  isInterviewerListeningRef.current = false;
+                }
+              }
+            }, 1000);
+          }
         };
         
         interviewerRecognition.onend = () => {
@@ -265,17 +331,19 @@ export default function InterviewPage() {
           if (isInterviewerListeningRef.current) {
             console.log("Restarting interviewer recognition as it ended unexpectedly");
             setTimeout(() => {
-              try {
-                interviewerRecognition.start();
-              } catch (e) {
-                console.error("Failed to restart interviewer recognition:", e);
-                isInterviewerListeningRef.current = false;
+              if (isInterviewerListeningRef.current) {
+                try {
+                  interviewerRecognition.start();
+                } catch (e) {
+                  console.error("Failed to restart interviewer recognition:", e);
+                  isInterviewerListeningRef.current = false;
+                }
               }
-            }, 500);
+            }, 1000);
           }
         };
         
-                  interviewerRecognition.onresult = (event: any) => {
+        interviewerRecognition.onresult = (event: any) => {
           let interimTranscript = '';
           let finalTranscript = '';
           
@@ -287,11 +355,6 @@ export default function InterviewPage() {
               
               // Update the last processed time
               setLastProcessedTime(new Date());
-              
-              // Auto-trigger AI response if enabled
-              if (autoResponse) {
-                getAIResponseFromTranscript();
-              }
             } else {
               interimTranscript += event.results[i][0].transcript;
               setInterimText(interimTranscript);
@@ -310,7 +373,7 @@ export default function InterviewPage() {
       }
     }
     return { userRecognition: null, interviewerRecognition: null };
-  }, [autoResponse]);
+  }, []);
 
   // Add a line to the transcript
   const addToTranscript = (text: string) => {
@@ -322,23 +385,16 @@ export default function InterviewPage() {
     }
   };
 
+  // Initialize speech recognition - only call once
   useEffect(() => {
-    // Setup speech recognition
-    const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
-    recognitionRef.current = userRecognition;
-    interviewerRecognitionRef.current = interviewerRecognition;
-    
-    // Cleanup function 
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      if (interviewerRecognitionRef.current) {
-        interviewerRecognitionRef.current.stop();
-      }
-    };
+    // Setup speech recognition if not already set up
+    if (!recognitionRef.current && !interviewerRecognitionRef.current) {
+      const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
+      recognitionRef.current = userRecognition;
+      interviewerRecognitionRef.current = interviewerRecognition;
+    }
   }, [setupSpeechRecognition]);
-  
+
   const startRecording = () => {
     if (!recognitionRef.current) {
       console.error("Speech recognition not initialized");
@@ -346,20 +402,15 @@ export default function InterviewPage() {
     }
     
     if (isListeningRef.current) {
-      console.log("Already listening, stopping first");
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        console.warn("Error stopping existing recognition:", e);
-      }
-      isListeningRef.current = false;
+      console.log("Already listening, not starting again");
+      return true;
     }
     
     try {
       // Start user's speech recognition first
       console.log("Starting user speech recognition");
+      recognitionStartingRef.current = true;
       recognitionRef.current.start();
-      isListeningRef.current = true;
       
       // Start interviewer recognition after a short delay
       setTimeout(() => {
@@ -367,7 +418,6 @@ export default function InterviewPage() {
           try {
             console.log("Starting interviewer speech recognition");
             interviewerRecognitionRef.current.start();
-            isInterviewerListeningRef.current = true;
           } catch (err) {
             console.error("Failed to start interviewer recognition:", err);
             // Continue even if interviewer recognition fails
@@ -375,25 +425,34 @@ export default function InterviewPage() {
         } else {
           console.warn("Interviewer recognition ref is not available");
         }
-      }, 500);
+      }, 1000);
       
       setIsRecording(true);
       return true;
     } catch (error) {
       console.error("Error starting user recognition:", error);
+      recognitionStartingRef.current = false;
       return false;
     }
   };
-  
+
   const stopRecording = () => {
     if (recognitionRef.current && isListeningRef.current) {
-      recognitionRef.current.stop();
-      isListeningRef.current = false;
+      try {
+        recognitionRef.current.stop();
+        isListeningRef.current = false;
+      } catch (e) {
+        console.warn("Error stopping user recognition:", e);
+      }
       
       // Stop the interviewer recognition as well
       if (interviewerRecognitionRef.current && isInterviewerListeningRef.current) {
-        interviewerRecognitionRef.current.stop();
-        isInterviewerListeningRef.current = false;
+        try {
+          interviewerRecognitionRef.current.stop();
+          isInterviewerListeningRef.current = false;
+        } catch (e) {
+          console.warn("Error stopping interviewer recognition:", e);
+        }
       }
       
       setIsRecording(false);
@@ -493,7 +552,7 @@ export default function InterviewPage() {
       setIsProcessingAI(false);
     }
   };
-  
+
   // Function to take a screenshot and analyze it
   const captureAndAnalyzeScreenshot = async () => {
     if (isProcessingAI || !user) return;
@@ -562,7 +621,7 @@ export default function InterviewPage() {
       setIsProcessingAI(false);
     }
   };
-  
+
   // Handle CV file upload
   const handleCVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -648,7 +707,7 @@ export default function InterviewPage() {
       setUploadProgress(0);
     }
   };
-  
+
   // Proceed to next step in the interview process
   const proceedToNextStep = () => {
     switch (currentStep) {
@@ -670,7 +729,7 @@ export default function InterviewPage() {
         break;
     }
   };
-  
+
   // Handle the continue button click after permission is granted
   const handleContinueAfterPermission = async () => {
     if (!user) {
@@ -678,24 +737,24 @@ export default function InterviewPage() {
       setShowMicPermissionDialog(false);
       return;
     }
-  
+
     try {
       console.log("Continue button clicked - proceeding with interview start");
-  
+
       // Ensure mic stream is stopped before starting
       if (micStream) {
         console.log("Stopping existing microphone stream");
         micStream.getTracks().forEach(track => track.stop());
         setMicStream(null);
       }
-  
+
       // Validate interview data
       const interviewData = {
         company: company || "Practice Interview",
         position: position || interviewType,
         interviewType
       };
-  
+
       console.log("Creating interview session with data:", interviewData);
       
       let interviewId;
@@ -708,12 +767,12 @@ export default function InterviewPage() {
         setShowMicPermissionDialog(false);
         return;
       }
-  
+
       setCurrentInterviewId(interviewId);
       setFullTranscript([]);
       setAiUsageCount(0);
       setInterviewStartTime(new Date());
-  
+
       // Proceed to CV upload step
       setShowMicPermissionDialog(false);
       setMicPermissionGranted(false); // Reset for next time
@@ -726,7 +785,7 @@ export default function InterviewPage() {
       setMicPermissionGranted(false);
     }
   };
-  
+
   // Start the interview
   const startInterview = async () => {
     if (!user) {
@@ -778,35 +837,25 @@ export default function InterviewPage() {
       alert("Error starting interview. Please try again.");
     }
   };
-  
+
   // Start the actual interview (after CV upload)
   const startActualInterview = async () => {
     console.log("Starting the actual interview with recognition...");
     
-    // Ensure speech recognition instances are properly set up
-    try {
-      const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
-      recognitionRef.current = userRecognition;
-      interviewerRecognitionRef.current = interviewerRecognition;
-    } catch (error: any) {
-      console.error("Error setting up speech recognition:", error);
-      alert("Failed to initialize speech recognition. Please try again.");
-      return;
-    }
-    
-    // Start recording
-    const recordingStarted = startRecording();
-    
-    if (recordingStarted) {
-      console.log("Recording started successfully");
+    // Start recording with proper delay to avoid aborted errors
+    setTimeout(() => {
+      const recordingStarted = startRecording();
       
-      addToTranscript(`System: Interview started for ${position || interviewType} at ${company || "Practice Interview"}`);
-    } else {
-      console.error("Failed to start recording");
-      alert("Failed to start recording. Please check your microphone settings and try again.");
-    }
+      if (recordingStarted) {
+        console.log("Recording started successfully");
+        addToTranscript(`System: Interview started for ${position || interviewType} at ${company || "Practice Interview"}`);
+      } else {
+        console.error("Failed to start recording");
+        alert("Failed to start recording. Please check your microphone settings and try again.");
+      }
+    }, 500);
   };
-  
+
   // End the interview
   const endInterview = async () => {
     setShowEndInterviewDialog(true);
@@ -899,7 +948,7 @@ export default function InterviewPage() {
       alert("Error saving interview results. Please try again.");
     }
   };
-  
+
   // Handle completion dialog close
   const handleCompletionDialogClose = () => {
     setShowCompletionDialog(false);
@@ -1032,425 +1081,365 @@ export default function InterviewPage() {
   );
 
   return (
-    <div className="flex h-screen bg-gray-950">
-      {/* Sidebar Component */}
-      <Sidebar />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
-        <header className="bg-gray-900/80 border-b border-gray-800 backdrop-blur-sm shadow-md">
-          <div className="flex items-center justify-between px-6 py-3">
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/dashboard" 
-                className="flex items-center text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 px-4 py-2 rounded-lg transition-all duration-300 shadow-lg shadow-indigo-600/20"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                <span className="font-medium">Dashboard</span>
-              </Link>
-              <h1 className="text-xl font-semibold text-white">Interview</h1>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-6 bg-gradient-to-b from-gray-900 to-gray-950">
-          <div className="max-w-4xl mx-auto">
-            {/* Page Heading */}
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">
-                {isInterviewStarted ? 'Interview in Progress' : 'Start Interview'}
-              </h1>
-              <p className="text-indigo-200/70 text-lg">
-                {isInterviewStarted 
-                  ? `${interviewType} for ${position || 'a role'} at ${company || 'Practice Interview'}`
-                  : 'Begin your interview with AI-powered assistance'}
-              </p>
-            </div>
-
-            {/* Different Steps Based on Current Step */}
-            {currentStep === 'setup' && (
-              <div className="bg-gradient-to-b from-gray-900/80 to-gray-900/40 rounded-xl p-8 border border-gray-800/80 shadow-xl backdrop-blur-sm hover:border-indigo-500/20 transition-all duration-300 relative overflow-hidden">
-                {/* Background blobs */}
-                <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-indigo-600/5 rounded-full blur-3xl"></div>
-                <div className="absolute top-20 -left-20 w-40 h-40 bg-indigo-600/5 rounded-full blur-2xl"></div>
-                
-                <div className="relative z-10">
-                  <h2 className="text-2xl font-semibold text-white mb-6 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Interview Setup
-                  </h2>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    {/* Interview Type Selection */}
-                    <div>
-                      <label htmlFor="interview-type" className="block text-sm font-medium text-indigo-200 mb-2">
-                        Interview Type
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                        </div>
-                        <select 
-                          id="interview-type"
-                          value={interviewType}
-                          onChange={(e) => setInterviewType(e.target.value as InterviewType)}
-                          className="w-full pl-10 form-select bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm appearance-none pr-10"
-                        >
-                          {INTERVIEW_TYPES.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Position/Role Input */}
-                    <div>
-                      <label htmlFor="position" className="block text-sm font-medium text-indigo-200 mb-2">
-                        Position/Role
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <input 
-                          type="text" 
-                          id="position"
-                          value={position}
-                          onChange={(e) => setPosition(e.target.value)}
-                          placeholder="Software Engineer, Product Manager, etc."
-                          className="w-full pl-10 form-input bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Company Input */}
-                    <div>
-                      <label htmlFor="company" className="block text-sm font-medium text-indigo-200 mb-2">
-                        Company (Optional)
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <input 
-                          type="text" 
-                          id="company"
-                          value={company}
-                          onChange={(e) => setCompany(e.target.value)}
-                          placeholder="Google, Amazon, etc. (Optional)"
-                          className="w-full pl-10 form-input bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* AI Response Settings */}
-                    <div>
-                      <label className="block text-sm font-medium text-indigo-200 mb-2">
-                        AI Response Settings
-                      </label>
-                      <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50 flex items-center">
-                        <div className="relative flex items-start">
-                          <div className="flex h-5 items-center">
-                            <input 
-                              type="checkbox" 
-                              id="auto-response" 
-                              checked={autoResponse}
-                              onChange={(e) => setAutoResponse(e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-gray-800"
-                            />
-                          </div>
-                          <div className="ml-3 text-sm">
-                            <label htmlFor="auto-response" className="text-gray-300">
-                              Automatically suggest responses
-                            </label>
-                            <p className="text-gray-400 text-xs mt-1">
-                              AI will automatically provide suggestions after the interviewer speaks
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Note about recording both sides */}
-                  <div className="mt-6 bg-yellow-900/20 rounded-lg p-4 border border-yellow-800/30">
-                    <div className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2h2a1 1 0 000-2H9z" clipRule="evenodd" />
-                      </svg>
-                      <p className="text-sm text-yellow-200/80">
-                        This tool uses speech recognition capabilities to transcribe both sides of the conversation. 
-                        For best results, ensure your microphone can clearly pick up both your voice and the interviewer's voice 
-                        from your speakers. In virtual interviews (Zoom, Teams, etc.), this works best with headphones.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Start Button & Status Indicators */}
-                  <div className="space-y-4 mt-8">
-                    <button 
-                      onClick={proceedToNextStep}
-                      className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 text-white py-4 rounded-lg hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/30 text-lg font-medium flex items-center justify-center"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Start Interview
-                    </button>
-                    
-                    <div className="flex justify-center gap-6">
-                      <div className="flex items-center">
-                        <div className={`h-3 w-3 ${isSpeechRecognitionSupported ? 'bg-blue-500' : 'bg-red-500'} rounded-full mr-2`}></div>
-                        <span className="text-sm text-gray-400">
-                          {isSpeechRecognitionSupported ? 'Microphone Supported' : 'Microphone Not Supported'}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="h-3 w-3 bg-green-500 rounded-full mr-2"></div>
-                        <span className="text-sm text-gray-400">AI Ready</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="h-3 w-3 bg-indigo-500 rounded-full mr-2"></div>
-                        <span className="text-sm text-gray-400">Secure Session</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* How It Works Section */}
-                  <div className="mt-8">
-                    <div className="bg-indigo-900/20 rounded-lg p-5 border border-indigo-800/30 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                      
-                      <h3 className="text-lg font-semibold text-indigo-300 mb-3">How It Works</h3>
-                      <div className="text-indigo-200/85 space-y-3">
-                        <p>
-                          When you start the interview, we'll use your microphone to listen to both you and your interviewer. Our AI will analyze the dialogue in real-time to provide optimal responses.
-                        </p>
-                        <div className="flex flex-wrap gap-4 mt-2">
-                          <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
-                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.activateAI}</span>
-                            <span className="text-sm">Activate AI assistance</span>
-                          </div>
-                          <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
-                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.hideOverlay}</span>
-                            <span className="text-sm">Hide AI overlay</span>
-                          </div>
-                          <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
-                            <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.takeScreenshot}</span>
-                            <span className="text-sm">Take screenshot</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+    <div className="bg-gray-950 h-screen w-screen overflow-hidden">
+      {/* Interview Setup, Permission, or CV Upload Steps */}
+      {!isInterviewStarted ? (
+        <div className="flex h-full w-full">
+          {/* Sidebar - only shown before interview starts */}
+          <Sidebar />
+          
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="max-w-4xl mx-auto w-full">
+              {/* Page Heading */}
+              <div className="mb-8">
+                <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">
+                  Start Interview
+                </h1>
+                <p className="text-indigo-200/70 text-lg">
+                  Begin your interview with AI-powered assistance
+                </p>
               </div>
-            )}
 
-            {/* CV Upload Step */}
-            {currentStep === 'cvUpload' && <CVUploadForm />}
-            
-            {/* Interview In Progress UI */}
-            {currentStep === 'interview' && (
-              <div className="bg-gradient-to-b from-gray-900/80 to-gray-900/40 rounded-xl border border-gray-800/80 shadow-xl backdrop-blur-sm overflow-hidden flex flex-col h-[calc(100vh-220px)]">
-                {/* Interview Controls */}
-                <div className="bg-gray-900 border-b border-gray-800 p-4 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className={`h-3 w-3 ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-500'} rounded-full mr-2`}></div>
-                    <span className="text-sm text-gray-300">{isRecording ? 'Recording' : 'Paused'}</span>
-                  </div>
-                  <div className="flex space-x-3">
-                    <button 
-                      onClick={getAIResponseFromTranscript}
-                      className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isProcessingAI ? 'bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
-                      disabled={isProcessingAI}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              {/* Different Steps Based on Current Step */}
+              {currentStep === 'setup' && (
+                <div className="bg-gradient-to-b from-gray-900/80 to-gray-900/40 rounded-xl p-8 border border-gray-800/80 shadow-xl backdrop-blur-sm hover:border-indigo-500/20 transition-all duration-300 relative overflow-hidden">
+                  {/* Background blobs */}
+                  <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-indigo-600/5 rounded-full blur-3xl"></div>
+                  <div className="absolute top-20 -left-20 w-40 h-40 bg-indigo-600/5 rounded-full blur-2xl"></div>
+                  
+                  <div className="relative z-10">
+                    <h2 className="text-2xl font-semibold text-white mb-6 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      Get AI Assistance
-                    </button>
-                    <button 
-                      onClick={captureAndAnalyzeScreenshot}
-                      className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isProcessingAI ? 'bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white'}`}
-                      disabled={isProcessingAI}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      Screenshot
-                    </button>
-                    <button 
-                      onClick={() => setShowTranscriptTesting(!showTranscriptTesting)}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white flex items-center"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      {showTranscriptTesting ? 'Hide Testing' : 'Show Testing'}
-                    </button>
-                    <button 
-                      onClick={endInterview}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm text-white flex items-center"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                      </svg>
-                      End Interview
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Transcript Testing Area */}
-                {showTranscriptTesting && (
-                  <div className="bg-gray-900/80 border-b border-gray-800 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-white font-medium">Speech Recognition Testing</h3>
-                      <div className="flex items-center">
-                        <div className={`h-2 w-2 ${isRecording ? 'bg-green-500' : 'bg-red-500'} rounded-full mr-2`}></div>
-                        <span className="text-sm text-gray-400">{isRecording ? 'Active' : 'Inactive'}</span>
-                      </div>
-                    </div>
-                    <div className="bg-gray-800/80 rounded-lg p-3 text-sm text-indigo-200">
-                      <p className="mb-2 text-xs text-gray-400">Last detected speech:</p>
-                      {interimText ? (
-                        <div className="flex items-center">
-                          <div className={`h-2 w-2 ${interimSpeaker === 'interviewer' ? 'bg-blue-500' : 'bg-indigo-500'} rounded-full mr-2`}></div>
-                          <span className={`${interimSpeaker === 'interviewer' ? 'text-blue-300' : 'text-indigo-300'}`}>
-                            {interimSpeaker === 'interviewer' ? 'Interviewer' : 'You'}: {interimText}
-                          </span>
-                          <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1"></span>
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 italic">No speech detected. Please speak to test.</p>
-                      )}
-                      
-                      <div className="mt-3 pt-3 border-t border-gray-700">
-                        <p className="text-xs text-gray-400 mb-2">Last processed at: {lastProcessedTime ? lastProcessedTime.toLocaleTimeString() : 'Never'}</p>
-                        <p className="text-xs text-gray-400">Total transcript lines: {fullTranscript.length}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Transcript Area */}
-                <div ref={transcriptContainerRef} className="flex-1 p-6 overflow-auto">
-                  <div className="space-y-3">
-                    {fullTranscript.map((line, index) => {
-                      if (line.startsWith("System:")) {
-                        return (
-                          <div key={index} className="bg-gray-800/50 text-gray-400 text-sm rounded px-3 py-2 italic">
-                            {line}
-                          </div>
-                        );
-                      } else if (line.startsWith("Interviewer:")) {
-                        return (
-                          <div key={index} className="flex items-start space-x-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                              </svg>
-                            </div>
-                            <div className="bg-blue-900/30 rounded-xl rounded-tl-none px-4 py-3 text-blue-100">
-                              {line.replace("Interviewer:", "")}
-                            </div>
-                          </div>
-                        );
-                      } else if (line.startsWith("You:")) {
-                        return (
-                          <div key={index} className="flex items-start space-x-3 justify-end">
-                            <div className="bg-indigo-900/30 rounded-xl rounded-tr-none px-4 py-3 text-indigo-100">
-                              {line.replace("You:", "")}
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                              </svg>
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      return null;
-                    })}
+                      Interview Setup
+                    </h2>
                     
-                    {/* Interim Text */}
-                    {interimText && interimSpeaker && (
-                      <div className={`flex items-start space-x-3 ${interimSpeaker === 'interviewer' ? '' : 'justify-end'}`}>
-                        {interimSpeaker === 'interviewer' && (
-                          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      {/* Interview Type Selection */}
+                      <div>
+                        <label htmlFor="interview-type" className="block text-sm font-medium text-indigo-200 mb-2">
+                          Interview Type
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
                           </div>
-                        )}
-                        <div className={`${interimSpeaker === 'interviewer' ? 'bg-blue-900/30 rounded-xl rounded-tl-none text-blue-100' : 'bg-indigo-900/30 rounded-xl rounded-tr-none text-indigo-100'} px-4 py-3 opacity-70`}>
-                          {interimText}
-                          <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1"></span>
-                        </div>
-                        {interimSpeaker === 'user' && (
-                          <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          <select 
+                            id="interview-type"
+                            value={interviewType}
+                            onChange={(e) => setInterviewType(e.target.value as InterviewType)}
+                            className="w-full pl-10 form-select bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm appearance-none pr-10"
+                          >
+                            {INTERVIEW_TYPES.map(type => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* AI Response Overlay */}
-                {showAIResponse && currentAIResponse && (
-                  <div className="bg-gray-950/95 border-t border-gray-800 p-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center">
-                        <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center mr-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                          </svg>
                         </div>
-                        <span className="text-purple-300 text-sm font-medium">AI Suggestion</span>
                       </div>
-                      <button 
-                        onClick={() => setShowAIResponse(false)}
-                        className="text-gray-400 hover:text-gray-300"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      
+                      {/* Position/Role Input */}
+                      <div>
+                        <label htmlFor="position" className="block text-sm font-medium text-indigo-200 mb-2">
+                          Position/Role
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <input 
+                            type="text" 
+                            id="position"
+                            value={position}
+                            onChange={(e) => setPosition(e.target.value)}
+                            placeholder="Software Engineer, Product Manager, etc."
+                            className="w-full pl-10 form-input bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Company Input */}
+                      <div>
+                        <label htmlFor="company" className="block text-sm font-medium text-indigo-200 mb-2">
+                          Company (Optional)
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                          </div>
+                          <input 
+                            type="text" 
+                            id="company"
+                            value={company}
+                            onChange={(e) => setCompany(e.target.value)}
+                            placeholder="Google, Amazon, etc. (Optional)"
+                            className="w-full pl-10 form-input bg-gray-800/70 border-gray-700/80 rounded-lg text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Note about recording both sides */}
+                    <div className="mt-6 bg-yellow-900/20 rounded-lg p-4 border border-yellow-800/30">
+                      <div className="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2h2a1 1 0 000-2H9z" clipRule="evenodd" />
                         </svg>
-                      </button>
+                        <p className="text-sm text-yellow-200/80">
+                          This tool uses speech recognition capabilities to transcribe both sides of the conversation. 
+                          For best results, ensure your microphone can clearly pick up both your voice and the interviewer's voice 
+                          from your speakers. In virtual interviews (Zoom, Teams, etc.), this works best with headphones.
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-white bg-purple-950/30 border border-purple-800/30 rounded-lg p-3 max-h-40 overflow-y-auto">
-                      {currentAIResponse}
+                    
+                    {/* Start Button & Status Indicators */}
+                    <div className="space-y-4 mt-8">
+                      <button 
+                        onClick={proceedToNextStep}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 text-white py-4 rounded-lg hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/30 text-lg font-medium flex items-center justify-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Start Interview
+                      </button>
+                      
+                      <div className="flex justify-center gap-6">
+                        <div className="flex items-center">
+                          <div className={`h-3 w-3 ${isSpeechRecognitionSupported ? 'bg-blue-500' : 'bg-red-500'} rounded-full mr-2`}></div>
+                          <span className="text-sm text-gray-400">
+                            {isSpeechRecognitionSupported ? 'Microphone Supported' : 'Microphone Not Supported'}
+                          </span>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="h-3 w-3 bg-green-500 rounded-full mr-2"></div>
+                          <span className="text-sm text-gray-400">AI Ready</span>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="h-3 w-3 bg-indigo-500 rounded-full mr-2"></div>
+                          <span className="text-sm text-gray-400">Secure Session</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* How It Works Section */}
+                    <div className="mt-8">
+                      <div className="bg-indigo-900/20 rounded-lg p-5 border border-indigo-800/30 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                        
+                        <h3 className="text-lg font-semibold text-indigo-300 mb-3">How It Works</h3>
+                        <div className="text-indigo-200/85 space-y-3">
+                          <p>
+                            When you start the interview, we'll use your microphone to listen to both you and your interviewer. Our AI will analyze the dialogue in real-time to provide optimal responses.
+                          </p>
+                          <div className="flex flex-wrap gap-4 mt-2">
+                            <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
+                              <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.activateAI}</span>
+                              <span className="text-sm">Activate AI assistance</span>
+                            </div>
+                            <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
+                              <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.hideOverlay}</span>
+                              <span className="text-sm">Hide AI overlay</span>
+                            </div>
+                            <div className="flex items-center bg-gray-800/70 px-3 py-1.5 rounded-lg border border-gray-700/50">
+                              <span className="bg-gray-700 text-gray-300 w-16 text-center text-xs py-1 px-2 rounded mr-2 font-mono font-bold">{hotkeys.takeScreenshot}</span>
+                              <span className="text-sm">Take screenshot</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+
+              {/* CV Upload Step */}
+              {currentStep === 'cvUpload' && <CVUploadForm />}
+            </div>
           </div>
-        </main>
-      </div>
+        </div>
+      ) : (
+        /* Interview In Progress UI - Full Screen (without sidebar) */
+        <div className="h-full w-full flex flex-col">
+          {/* Interview Controls */}
+          <div className="bg-gray-900 border-b border-gray-800 p-4 flex items-center justify-between">
+            <div className="flex items-center">
+              <div className={`h-3 w-3 ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-500'} rounded-full mr-2`}></div>
+              <span className="text-sm text-gray-300">{isRecording ? 'Recording' : 'Paused'}</span>
+            </div>
+            <div className="flex space-x-3">
+              <button 
+                onClick={getAIResponseFromTranscript}
+                className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isProcessingAI ? 'bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                disabled={isProcessingAI}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Get AI Assistance
+              </button>
+              <button 
+                onClick={captureAndAnalyzeScreenshot}
+                className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isProcessingAI ? 'bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white'}`}
+                disabled={isProcessingAI}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Screenshot
+              </button>
+              <button 
+                onClick={endInterview}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm text-white flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+                End Interview
+              </button>
+            </div>
+          </div>
+          
+          {/* Transcript Testing Area */}
+          <div className="bg-gray-900/80 border-b border-gray-800 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-white font-medium">Speech Recognition Testing</h3>
+              <div className="flex items-center">
+                <div className={`h-2 w-2 ${isRecording ? 'bg-green-500' : 'bg-red-500'} rounded-full mr-2`}></div>
+                <span className="text-sm text-gray-400">{isRecording ? 'Active' : 'Inactive'}</span>
+              </div>
+            </div>
+            <div className="bg-gray-800/80 rounded-lg p-3 text-sm text-indigo-200">
+              <p className="mb-2 text-xs text-gray-400">Last detected speech:</p>
+              {interimText ? (
+                <div className="flex items-center">
+                  <div className={`h-2 w-2 ${interimSpeaker === 'interviewer' ? 'bg-blue-500' : 'bg-indigo-500'} rounded-full mr-2`}></div>
+                  <span className={`${interimSpeaker === 'interviewer' ? 'text-blue-300' : 'text-indigo-300'}`}>
+                    {interimSpeaker === 'interviewer' ? 'Interviewer' : 'You'}: {interimText}
+                  </span>
+                  <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1"></span>
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">No speech detected. Please speak to test.</p>
+              )}
+              
+              <div className="mt-3 pt-3 border-t border-gray-700">
+                <p className="text-xs text-gray-400 mb-2">Last processed at: {lastProcessedTime ? lastProcessedTime.toLocaleTimeString() : 'Never'}</p>
+                <p className="text-xs text-gray-400">Total transcript lines: {fullTranscript.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Transcript Area */}
+          <div ref={transcriptContainerRef} className="flex-1 p-6 overflow-auto">
+            <div className="space-y-3">
+              {fullTranscript.map((line, index) => {
+                if (line.startsWith("System:")) {
+                  return (
+                    <div key={index} className="bg-gray-800/50 text-gray-400 text-sm rounded px-3 py-2 italic">
+                      {line}
+                    </div>
+                  );
+                } else if (line.startsWith("Interviewer:")) {
+                  return (
+                    <div key={index} className="flex items-start space-x-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                      </div>
+                      <div className="bg-blue-900/30 rounded-xl rounded-tl-none px-4 py-3 text-blue-100">
+                        {line.replace("Interviewer:", "")}
+                      </div>
+                    </div>
+                  );
+                } else if (line.startsWith("You:")) {
+                  return (
+                    <div key={index} className="flex items-start space-x-3 justify-end">
+                      <div className="bg-indigo-900/30 rounded-xl rounded-tr-none px-4 py-3 text-indigo-100">
+                        {line.replace("You:", "")}
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return null;
+              })}
+              
+              {/* Interim Text */}
+              {interimText && interimSpeaker && (
+                <div className={`flex items-start space-x-3 ${interimSpeaker === 'interviewer' ? '' : 'justify-end'}`}>
+                  {interimSpeaker === 'interviewer' && (
+                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className={`${interimSpeaker === 'interviewer' ? 'bg-blue-900/30 rounded-xl rounded-tl-none text-blue-100' : 'bg-indigo-900/30 rounded-xl rounded-tr-none text-indigo-100'} px-4 py-3 opacity-70`}>
+                    {interimText}
+                    <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1"></span>
+                  </div>
+                  {interimSpeaker === 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* AI Response Overlay */}
+          {showAIResponse && currentAIResponse && (
+            <div className="bg-gray-950/95 border-t border-gray-800 p-4">
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center">
+                  <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  </div>
+                  <span className="text-purple-300 text-sm font-medium">AI Suggestion</span>
+                </div>
+                <button 
+                  onClick={() => setShowAIResponse(false)}
+                  className="text-gray-400 hover:text-gray-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <div className="text-white bg-purple-950/30 border border-purple-800/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                {currentAIResponse}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Microphone Permission Dialog */}
       {showMicPermissionDialog && (
