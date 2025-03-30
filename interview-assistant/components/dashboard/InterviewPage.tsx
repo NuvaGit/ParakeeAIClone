@@ -71,11 +71,21 @@ export default function InterviewPage() {
 
   // Check if user is logged in
   useEffect(() => {
+    // Check if user is logged in
     if (!user) {
       console.log("No user detected, redirecting to signin page");
       router.push('/signin');
+      return;
     }
-  }, [user, router]);
+    
+    // Clean up any Firestore listeners when component unmounts
+    return () => {
+      if (currentInterviewId) {
+        console.log(`Cleaning up Interview session: ${currentInterviewId}`);
+        // Optional: Add logic to update the interview status if needed
+      }
+    };
+  }, [user, router, currentInterviewId]);
 
   // Load hotkeys from localStorage
   useEffect(() => {

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from '@/firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore'; // Removed getDoc as it's not used
 import { db } from '@/firebase/config';
 
 // Define user data type
@@ -39,30 +39,39 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-      
-      try {
-        // Fetch user data from Firestore
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        
-        if (userDoc.exists()) {
-          setUserData(userDoc.data() as UserData);
+    // No async function needed, directly setup listener
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+    
+    let unsubscribe = () => {}; // Default no-op function
+    
+    try {
+      // Set up Firestore listener
+      const userDocRef = doc(db, "users", user.uid);
+      unsubscribe = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
+          setUserData(doc.data() as UserData);
         } else {
           setError("User profile not found");
         }
-      } catch (err) {
-        console.error("Error fetching user data:", err);
-        setError("Failed to load user data");
-      } finally {
         setIsLoading(false);
-      }
+      }, (error) => {
+        console.error("Error fetching user data:", error);
+        setError("Failed to load user data");
+        setIsLoading(false);
+      });
+    } catch (err) {
+      console.error("Error setting up user data listener:", err);
+      setError("Failed to load user data");
+      setIsLoading(false);
+    }
+    
+    // Cleanup function
+    return () => {
+      unsubscribe();
     };
-
-    fetchUserData();
   }, [user]);
 
   const value = {

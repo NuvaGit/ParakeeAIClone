@@ -3,8 +3,12 @@
 import { useAuth } from "@/firebase/auth";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { getUserInterviews, getUserAverageScore, getCommonQuestions } from '@/firebase/interviews';
-import { Interview } from '@/firebase/interviews';
+import { 
+  getUserInterviews, 
+  getUserAverageScore, 
+  getCommonQuestions,
+  Interview
+} from '@/firebase/interviews';
 import Sidebar from "@/components/dashboard/Sidebar";
 
 export default function InterviewHistoryPage() {
@@ -50,15 +54,17 @@ export default function InterviewHistoryPage() {
 
   const filteredInterviews = interviewHistory.filter(interview => {
     // Apply search filter
-    if (searchTerm && !interview.company.toLowerCase().includes(searchTerm.toLowerCase()) && 
-        !interview.position.toLowerCase().includes(searchTerm.toLowerCase())) {
+    if (searchTerm && 
+        !interview.company?.toLowerCase().includes(searchTerm.toLowerCase()) && 
+        !interview.position?.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
     
-    // Apply status filter
-    if (filterStatus === "high" && interview.score < 90) return false;
-    if (filterStatus === "medium" && (interview.score < 70 || interview.score >= 90)) return false;
-    if (filterStatus === "low" && interview.score >= 70) return false;
+    // Apply status filter with nullish coalescing to handle undefined
+    const score = interview.score ?? 0;
+    if (filterStatus === "high" && score < 90) return false;
+    if (filterStatus === "medium" && (score < 70 || score >= 90)) return false;
+    if (filterStatus === "low" && score >= 70) return false;
     
     return true;
   });
@@ -75,6 +81,9 @@ export default function InterviewHistoryPage() {
     // Handle Date objects or date strings
     return new Date(date).toLocaleDateString();
   };
+
+  // Get the most recent interview safely
+  const mostRecentInterview = interviewHistory.length > 0 ? interviewHistory[0] : null;
 
   return (
     <div className="flex h-screen bg-gray-950">
@@ -151,21 +160,21 @@ export default function InterviewHistoryPage() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                               <span className="bg-indigo-900/30 text-indigo-300 px-2 py-1 rounded-full text-xs font-medium">
-                                {interview.company}
+                                {interview.company || 'Unknown'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                              {interview.position}
+                              {interview.position || 'Unknown'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                              {interview.duration}
+                              {interview.duration || 'N/A'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                               <div className="inline-flex items-center bg-indigo-900/20 px-2 py-1 rounded-full">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-400 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
-                                <span>{interview.aiUsage} assists</span>
+                                <span>{interview.aiUsage || 0} assists</span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -173,18 +182,18 @@ export default function InterviewHistoryPage() {
                                 <div className="h-2 w-20 bg-gray-700 rounded-full overflow-hidden">
                                   <div
                                     className={`h-2 rounded-full ${
-                                      interview.score >= 90 ? 'bg-green-500' : 
-                                      interview.score >= 70 ? 'bg-blue-500' : 
+                                      (interview.score || 0) >= 90 ? 'bg-green-500' : 
+                                      (interview.score || 0) >= 70 ? 'bg-blue-500' : 
                                       'bg-yellow-500'
                                     }`}
-                                    style={{ width: `${interview.score}%` }}
+                                    style={{ width: `${interview.score || 0}%` }}
                                   ></div>
                                 </div>
                                 <span className={`ml-3 text-sm font-medium ${
-                                  interview.score >= 90 ? 'text-green-400' : 
-                                  interview.score >= 70 ? 'text-blue-400' : 
+                                  (interview.score || 0) >= 90 ? 'text-green-400' : 
+                                  (interview.score || 0) >= 70 ? 'text-blue-400' : 
                                   'text-yellow-500'
-                                }`}>{interview.score}%</span>
+                                }`}>{interview.score || 0}%</span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -252,38 +261,38 @@ export default function InterviewHistoryPage() {
                   {/* Most Recent Card */}
                   <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300">
                     <h3 className="text-lg font-medium text-gray-300 mb-3">Most Recent</h3>
-                    {interviewHistory.length > 0 ? (
+                    {mostRecentInterview ? (
                       <>
                         <div className="text-center mb-3">
                           <span className="text-2xl font-bold text-white bg-gradient-to-r from-indigo-400 to-indigo-600 bg-clip-text text-transparent">
-                            {interviewHistory[0]?.company}
+                            {mostRecentInterview.company || 'Unknown Company'}
                           </span>
                         </div>
                         <div className="bg-gray-800/70 rounded-lg p-3">
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-sm text-gray-400">Position:</span>
-                            <span className="text-sm text-gray-300">{interviewHistory[0]?.position}</span>
+                            <span className="text-sm text-gray-300">{mostRecentInterview.position || 'N/A'}</span>
                           </div>
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-sm text-gray-400">Date:</span>
                             <span className="text-sm text-gray-300">
-                              {formatDate(interviewHistory[0]?.date)}
+                              {formatDate(mostRecentInterview.date)}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-gray-400">Score:</span>
                             <span className={`text-sm font-medium ${
-                              interviewHistory[0]?.score >= 90 ? 'text-green-400' : 
-                              interviewHistory[0]?.score >= 70 ? 'text-blue-400' : 
+                              (mostRecentInterview.score || 0) >= 90 ? 'text-green-400' : 
+                              (mostRecentInterview.score || 0) >= 70 ? 'text-blue-400' : 
                               'text-yellow-500'
                             }`}>
-                              {interviewHistory[0]?.score}%
+                              {mostRecentInterview.score || 0}%
                             </span>
                           </div>
                         </div>
                         <div className="mt-4 text-center">
                           <Link
-                            href={`/dashboard/history/${interviewHistory[0]?.id}`}
+                            href={`/dashboard/history/${mostRecentInterview.id}`}
                             className="text-sm text-indigo-400 hover:text-indigo-300 inline-flex items-center"
                           >
                             View full report

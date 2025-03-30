@@ -3,7 +3,20 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/firebase/auth";
-import { getInterview, getInterviewQuestions } from "@/firebase/interviews";
+import { 
+  Interview 
+} from "@/firebase/interviews";
+import { 
+  doc, 
+  onSnapshot, 
+  collection, 
+  query, 
+  orderBy, 
+  DocumentSnapshot, 
+  QuerySnapshot, 
+  FirestoreError 
+} from "firebase/firestore";
+import { db } from "@/firebase/config";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Link from "next/link";
 
@@ -11,36 +24,63 @@ export default function InterviewDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const [interview, setInterview] = useState<any>(null);
+  const [interview, setInterview] = useState<Interview | null>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showFullTranscript, setShowFullTranscript] = useState(false);
 
   useEffect(() => {
-    const fetchInterviewDetails = async () => {
-      if (!user || !id) return;
-
-      try {
-        setIsLoading(true);
-        const interviewData = await getInterview(id as string);
-        if (!interviewData) {
+    if (!user || !id) return;
+    
+    setIsLoading(true);
+    
+    // Setup real-time listeners instead of one-time fetch
+    const interviewRef = doc(db, "interviews", id as string);
+    const unsubscribeInterview = onSnapshot(
+      interviewRef, 
+      (docSnap: DocumentSnapshot) => {
+        if (!docSnap.exists()) {
+          console.log(`Interview ${id} not found`);
           router.push('/dashboard/history');
           return;
         }
-
-        setInterview(interviewData);
-
-        // Fetch questions if they exist
-        const interviewQuestions = await getInterviewQuestions(id as string);
-        setQuestions(interviewQuestions);
-      } catch (error) {
-        console.error("Error fetching interview details:", error);
-      } finally {
+        
+        setInterview({
+          id: docSnap.id,
+          ...docSnap.data()
+        } as Interview);
+        setIsLoading(false);
+      }, 
+      (error: FirestoreError) => {
+        console.error("Error fetching interview:", error);
         setIsLoading(false);
       }
+    );
+    
+    // Set up listener for questions subcollection
+    const questionsCollection = collection(db, "interviews", id as string, "questions");
+    const questionsQuery = query(questionsCollection, orderBy("timestamp", "asc"));
+    
+    const unsubscribeQuestions = onSnapshot(
+      questionsQuery, 
+      (querySnap: QuerySnapshot) => {
+        const questionsList = querySnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setQuestions(questionsList);
+      }, 
+      (error: FirestoreError) => {
+        console.error("Error fetching questions:", error);
+      }
+    );
+    
+    // Return cleanup function to unsubscribe from both listeners
+    return () => {
+      unsubscribeInterview();
+      unsubscribeQuestions();
+      console.log(`Cleaned up listeners for interview ${id}`);
     };
-
-    fetchInterviewDetails();
   }, [id, user, router]);
 
   // Format date from Firestore timestamp

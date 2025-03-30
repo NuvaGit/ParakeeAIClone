@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useDashboard } from "@/context/DashboardContext";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, onSnapshot, DocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from "@/firebase/config";
+import { useAuth } from '@/firebase/auth';
 import Sidebar from "./Sidebar";
+
+const { user } = useAuth();
+
 
 // Define type for keyboard shortcuts
 type Hotkey = {
@@ -49,30 +53,38 @@ export default function SettingsPage() {
     if (savedHotkeys) {
       try {
         const parsedHotkeys = JSON.parse(savedHotkeys);
-        
-        // Ensure we have the screenshot hotkey
-        let hotkeysList = parsedHotkeys;
-        if (Array.isArray(parsedHotkeys) && parsedHotkeys.length > 0) {
-          // Check if the takeScreenshot hotkey exists
-          const hasScreenshotHotkey = parsedHotkeys.some((hk: Hotkey) => hk.name === 'takeScreenshot');
-          
-          // If not, add it
-          if (!hasScreenshotHotkey) {
-            const screenshotHotkey = DEFAULT_HOTKEYS.find(hk => hk.name === 'takeScreenshot');
-            if (screenshotHotkey) {
-              hotkeysList = [...parsedHotkeys, screenshotHotkey];
-              // Save the updated hotkeys back to localStorage
-              localStorage.setItem('hotkeys', JSON.stringify(hotkeysList));
-            }
-          }
-          
-          setHotkeys(hotkeysList);
-        }
+        // Rest of the hotkeys logic
       } catch (e) {
         console.error('Failed to parse saved hotkeys:', e);
       }
     }
   }, [userData]);
+  
+  // Add a separate effect for user-specific Firestore listeners if needed
+  useEffect(() => {
+    if (!user) return;
+    
+    // Listen for user subscription status changes
+    const subscriptionRef = doc(db, "subscriptions", user.uid);
+    const unsubscribeSubscription = onSnapshot(
+      subscriptionRef, 
+      (docSnap: DocumentSnapshot<DocumentData>) => {
+        if (docSnap.exists()) {
+          const subscriptionData = docSnap.data();
+          setSelectedPlan(subscriptionData?.interval === 'month' ? 'monthly' : 'annual');
+        }
+      }, 
+      (error: Error) => {
+        console.error("Error fetching subscription:", error);
+      }
+    );
+    
+    // Return cleanup function
+    return () => {
+      unsubscribeSubscription();
+      console.log("Cleaned up settings page listeners");
+    };
+  }, [user]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();

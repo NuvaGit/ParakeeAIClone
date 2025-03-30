@@ -13,6 +13,7 @@ import {
   UserCredential
 } from 'firebase/auth';
 import { auth } from './config';
+import FirebaseCleanup from '@/components/FirebaseCleanup';
 
 type AuthContextType = {
   user: User | null;
@@ -116,6 +117,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <AuthContext.Provider value={value}>
       {!loading && children}
+      <FirebaseCleanup />
     </AuthContext.Provider>
   );
 };

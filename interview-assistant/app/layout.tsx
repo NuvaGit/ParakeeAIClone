@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import localFont from "next/font/local";
 import Header from "@/components/ui/header";
 import { AuthProvider } from "@/firebase/auth";
+import FirebaseCleanup from '@/components/FirebaseCleanup';
 
 const inter = Inter({
   subsets: ["latin"],
@@ -58,6 +59,7 @@ export default function RootLayout({
             {children}
             {/* Footer removed from root layout */}
           </div>
+          <FirebaseCleanup />
         </AuthProvider>
       </body>
     </html>
