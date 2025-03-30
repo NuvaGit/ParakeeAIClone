@@ -7,9 +7,6 @@ import { db } from "@/firebase/config";
 import { useAuth } from '@/firebase/auth';
 import Sidebar from "./Sidebar";
 
-const { user } = useAuth();
-
-
 // Define type for keyboard shortcuts
 type Hotkey = {
   name: string;
@@ -28,6 +25,7 @@ const DEFAULT_HOTKEYS: Hotkey[] = [
 
 export default function SettingsPage() {
   const { userData } = useDashboard();
+  const { user } = useAuth(); // FIXED: Moved inside component body
   const [isSaving, setIsSaving] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -53,7 +51,7 @@ export default function SettingsPage() {
     if (savedHotkeys) {
       try {
         const parsedHotkeys = JSON.parse(savedHotkeys);
-        // Rest of the hotkeys logic
+        setHotkeys(parsedHotkeys); // Added this line to actually use the parsed hotkeys
       } catch (e) {
         console.error('Failed to parse saved hotkeys:', e);
       }
