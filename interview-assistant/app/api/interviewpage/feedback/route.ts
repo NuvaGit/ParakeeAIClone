@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
       company, 
       position, 
       interviewType,
-      duration
+      duration,
+      cvContent  // Optional CV content
     } = await request.json();
 
     if (!fullTranscript || !Array.isArray(fullTranscript)) {
@@ -29,15 +30,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create system prompt
+    let systemPrompt = `You are an expert interview coach, analyzing a completed ${interviewType} interview for a ${position} position at ${company || "a company"}. 
+    The interview lasted approximately ${duration} minutes. Analyze the transcript and provide helpful feedback with a numeric score.
+    Be constructive, focusing on both strengths and areas for improvement.`;
+
+    // Add CV content to system prompt if available
+    if (cvContent) {
+      systemPrompt += `\n\nHere is the candidate's CV/resume information to help you provide more tailored feedback based on how well they presented their experience:
+      ${cvContent.substring(0, 2000)}`;  // Limit CV content to avoid token limits
+    }
+
     // Generate feedback
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are an expert interview coach, analyzing a completed ${interviewType} interview for a ${position} position at ${company || "a company"}. 
-          The interview lasted approximately ${duration} minutes. Analyze the transcript and provide helpful feedback with a numeric score.
-          Be constructive, focusing on both strengths and areas for improvement.`
+          content: systemPrompt
         },
         {
           role: "user",

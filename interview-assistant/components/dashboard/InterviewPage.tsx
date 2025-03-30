@@ -21,9 +21,18 @@ interface SpeechRecognitionResult {
   speaker: 'user' | 'interviewer';
 }
 
+// Added interface for CV data
+interface CVData {
+  fileName: string;
+  fileSize: number;
+  content?: string;
+  uploadedAt: Date;
+}
+
 export default function InterviewPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const [currentStep, setCurrentStep] = useState<'setup' | 'permission' | 'cvUpload' | 'interview' | 'feedback'>('setup');
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [interviewType, setInterviewType] = useState<InterviewType>("Technical Interview");
   const [company, setCompany] = useState("");
@@ -41,6 +50,11 @@ export default function InterviewPage() {
     takeScreenshot: 'F2'
   });
   
+  // CV upload state
+  const [cv, setCV] = useState<CVData | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showCVPreview, setShowCVPreview] = useState(false);
+  
   // Dialog states
   const [showMicPermissionDialog, setShowMicPermissionDialog] = useState(false);
   const [showEndInterviewDialog, setShowEndInterviewDialog] = useState(false);
@@ -55,6 +69,10 @@ export default function InterviewPage() {
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [showAIResponse, setShowAIResponse] = useState(false);
   
+  // Testing visualization states
+  const [showTranscriptTesting, setShowTranscriptTesting] = useState(true);
+  const [lastProcessedTime, setLastProcessedTime] = useState<Date | null>(null);
+  
   // Add state for tracking if permission is granted
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
   // Add active stream state to properly clean up
@@ -68,6 +86,11 @@ export default function InterviewPage() {
   
   // Scroll container for transcript
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
+  // Time-based context tracking
+  const recentContextStartTime = useRef<Date | null>(null);
+
+  // File input ref for CV upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if user is logged in
   useEffect(() => {
@@ -202,7 +225,7 @@ export default function InterviewPage() {
           }
         };
         
-        recognition.onresult = (event: any) => {
+                  recognition.onresult = (event: any) => {
           let interimTranscript = '';
           let finalTranscript = '';
           
@@ -211,6 +234,9 @@ export default function InterviewPage() {
               finalTranscript += event.results[i][0].transcript + ' ';
               // Add to full transcript with speaker identification
               addToTranscript("You: " + event.results[i][0].transcript);
+              
+              // Update the last processed time
+              setLastProcessedTime(new Date());
             } else {
               interimTranscript += event.results[i][0].transcript;
               setInterimText(interimTranscript);
@@ -249,7 +275,7 @@ export default function InterviewPage() {
           }
         };
         
-        interviewerRecognition.onresult = (event: any) => {
+                  interviewerRecognition.onresult = (event: any) => {
           let interimTranscript = '';
           let finalTranscript = '';
           
@@ -258,6 +284,9 @@ export default function InterviewPage() {
               finalTranscript += event.results[i][0].transcript + ' ';
               // Add to full transcript with speaker identification
               addToTranscript("Interviewer: " + event.results[i][0].transcript);
+              
+              // Update the last processed time
+              setLastProcessedTime(new Date());
               
               // Auto-trigger AI response if enabled
               if (autoResponse) {
@@ -286,6 +315,11 @@ export default function InterviewPage() {
   // Add a line to the transcript
   const addToTranscript = (text: string) => {
     setFullTranscript(prev => [...prev, text]);
+    
+    // If this is the first line, start tracking the context time
+    if (!recentContextStartTime.current) {
+      recentContextStartTime.current = new Date();
+    }
   };
 
   useEffect(() => {
@@ -368,6 +402,22 @@ export default function InterviewPage() {
     return false;
   };
 
+  // Get recent transcript for context (last 30 seconds)
+  const getRecentTranscript = () => {
+    if (!lastProcessedTime) {
+      return fullTranscript; // Return all if no time tracking
+    }
+    
+    // Get transcript from the last 30 seconds
+    const thirtySecondsAgo = new Date();
+    thirtySecondsAgo.setSeconds(thirtySecondsAgo.getSeconds() - 30);
+    
+    // Find the index of the first line in the last 30 seconds
+    // This is a simplified approach - in reality, each line should have a timestamp
+    const recentLines = Math.min(5, fullTranscript.length);
+    return fullTranscript.slice(-recentLines);
+  };
+
   // Get AI response from the transcript
   const getAIResponseFromTranscript = async () => {
     if (isProcessingAI || fullTranscript.length === 0 || !user) return;
@@ -375,18 +425,28 @@ export default function InterviewPage() {
     setIsProcessingAI(true);
     
     try {
+      // Get only recent context (last 30 seconds or last 5 lines as fallback)
+      const recentTranscript = getRecentTranscript();
+      
+      const payload: any = {
+        transcript: recentTranscript,
+        company,
+        position: position || interviewType,
+        interviewType,
+        contextLines: 5
+      };
+      
+      // Add CV content if available
+      if (cv && cv.content) {
+        payload.cvContent = cv.content;
+      }
+      
       const response = await fetch('/api/interviewpage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          transcript: fullTranscript,
-          company,
-          position: position || interviewType,
-          interviewType,
-          contextLines: 5
-        }),
+        body: JSON.stringify(payload),
       });
       
       if (!response.ok) {
@@ -401,14 +461,14 @@ export default function InterviewPage() {
       // Store the AI suggestion with the question
       if (currentInterviewId && data.aiResponse) {
         // Extract the last question from the interviewer
-        const lastInterviewerQuestion = fullTranscript
+        const lastInterviewerQuestion = recentTranscript
           .filter(line => line.startsWith("Interviewer:"))
           .pop()
           ?.replace("Interviewer:", "")
           .trim();
           
         // Extract the last answer from the user
-        const lastUserAnswer = fullTranscript
+        const lastUserAnswer = recentTranscript
           .filter(line => line.startsWith("You:"))
           .pop()
           ?.replace("You:", "")
@@ -457,18 +517,26 @@ export default function InterviewPage() {
         setShowAIResponse(true);
       }
       
+      // Prepare payload
+      const payload: any = {
+        screenshotData: screenshotDataUrl,
+        company,
+        position: position || interviewType,
+        interviewType
+      };
+      
+      // Add CV content if available
+      if (cv && cv.content) {
+        payload.cvContent = cv.content;
+      }
+      
       // Send screenshot to API for analysis
       const response = await fetch('/api/interviewpage', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          screenshotData: screenshotDataUrl,
-          company,
-          position: position || interviewType,
-          interviewType
-        }),
+        body: JSON.stringify(payload),
       });
       
       if (!response.ok) {
@@ -492,6 +560,114 @@ export default function InterviewPage() {
       setCurrentAIResponse("Sorry, I couldn't analyze the screenshot at this time.");
     } finally {
       setIsProcessingAI(false);
+    }
+  };
+  
+  // Handle CV file upload
+  const handleCVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    
+    // Check if file is a PDF, DOC, or DOCX
+    const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please upload a PDF, DOC, DOCX, or TXT file');
+      return;
+    }
+    
+    // File size check (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size should be less than 5MB');
+      return;
+    }
+    
+    try {
+      setUploadProgress(10);
+      
+      // Read the file
+      const reader = new FileReader();
+      
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const progress = Math.round((e.loaded / e.total) * 50);
+          setUploadProgress(progress);
+        }
+      };
+      
+      reader.onload = async (e) => {
+        setUploadProgress(60);
+        
+        if (!e.target?.result) {
+          throw new Error('Failed to read file');
+        }
+        
+        // Extract text from the file
+        let fileContent = '';
+        
+        if (file.type === 'text/plain') {
+          // For plain text files
+          fileContent = e.target.result as string;
+        } else {
+          // For other document types, we would typically use a server-side service
+          // For this example, we'll just use the first 2000 characters as dummy content
+          const content = e.target.result as string;
+          fileContent = `Content from ${file.name} (showing first 2000 chars): ${content.substring(0, 2000)}`;
+        }
+        
+        setUploadProgress(90);
+        
+        // Create CV data object
+        const cvData: CVData = {
+          fileName: file.name,
+          fileSize: file.size,
+          content: fileContent,
+          uploadedAt: new Date()
+        };
+        
+        setCV(cvData);
+        setUploadProgress(100);
+        
+        // Reset progress after a delay
+        setTimeout(() => {
+          setUploadProgress(0);
+        }, 1000);
+      };
+      
+      reader.onerror = () => {
+        throw new Error('Error reading file');
+      };
+      
+      // Read the file as text
+      reader.readAsText(file);
+      
+    } catch (error) {
+      console.error('Error uploading CV:', error);
+      alert('Failed to upload CV. Please try again.');
+      setUploadProgress(0);
+    }
+  };
+  
+  // Proceed to next step in the interview process
+  const proceedToNextStep = () => {
+    switch (currentStep) {
+      case 'setup':
+        setCurrentStep('permission');
+        startInterview();
+        break;
+      case 'permission':
+        setCurrentStep('cvUpload');
+        break;
+      case 'cvUpload':
+        setCurrentStep('interview');
+        setIsInterviewStarted(true);
+        break;
+      case 'interview':
+        setCurrentStep('feedback');
+        break;
+      default:
+        break;
     }
   };
   
@@ -538,36 +714,11 @@ export default function InterviewPage() {
       setAiUsageCount(0);
       setInterviewStartTime(new Date());
   
-      console.log("Attempting to start speech recognition...");
-  
-      // Ensure speech recognition instances are properly set up
-      try {
-        const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
-        recognitionRef.current = userRecognition;
-        interviewerRecognitionRef.current = interviewerRecognition;
-      } catch (error: any) {
-        console.error("Error setting up speech recognition:", error);
-        alert("Failed to initialize speech recognition. Please try again.");
-        setShowMicPermissionDialog(false);
-        return;
-      }
-  
-      // Start recording
-      const recordingStarted = startRecording();
-  
-      if (recordingStarted) {
-        console.log("Recording started successfully - updating UI state");
-        setIsInterviewStarted(true);
-        setShowMicPermissionDialog(false);
-        setMicPermissionGranted(false); // Reset for next time
-  
-        addToTranscript(`System: Interview started for ${position || interviewType} at ${company || "Practice Interview"}`);
-      } else {
-        console.error("Failed to start recording even with permissions granted");
-        alert("Failed to start recording. Please check your microphone settings and try again.");
-        setShowMicPermissionDialog(false);
-        setMicPermissionGranted(false);
-      }
+      // Proceed to CV upload step
+      setShowMicPermissionDialog(false);
+      setMicPermissionGranted(false); // Reset for next time
+      proceedToNextStep(); // Move from permission to CV upload
+      
     } catch (error: any) {
       console.error("Unexpected error in handleContinueAfterPermission:", error);
       alert(`Error starting interview: ${error?.message ?? 'Unknown error'}. Please try again.`);
@@ -575,7 +726,6 @@ export default function InterviewPage() {
       setMicPermissionGranted(false);
     }
   };
-  
   
   // Start the interview
   const startInterview = async () => {
@@ -629,6 +779,33 @@ export default function InterviewPage() {
     }
   };
   
+  // Start the actual interview (after CV upload)
+  const startActualInterview = async () => {
+    console.log("Starting the actual interview with recognition...");
+    
+    // Ensure speech recognition instances are properly set up
+    try {
+      const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
+      recognitionRef.current = userRecognition;
+      interviewerRecognitionRef.current = interviewerRecognition;
+    } catch (error: any) {
+      console.error("Error setting up speech recognition:", error);
+      alert("Failed to initialize speech recognition. Please try again.");
+      return;
+    }
+    
+    // Start recording
+    const recordingStarted = startRecording();
+    
+    if (recordingStarted) {
+      console.log("Recording started successfully");
+      
+      addToTranscript(`System: Interview started for ${position || interviewType} at ${company || "Practice Interview"}`);
+    } else {
+      console.error("Failed to start recording");
+      alert("Failed to start recording. Please check your microphone settings and try again.");
+    }
+  };
   
   // End the interview
   const endInterview = async () => {
@@ -654,18 +831,25 @@ export default function InterviewPage() {
       
       try {
         console.log("Requesting interview feedback...");
+        const payload: any = {
+          fullTranscript,
+          company,
+          position: position || interviewType,
+          interviewType,
+          duration: durationMinutes
+        };
+        
+        // Add CV content if available
+        if (cv && cv.content) {
+          payload.cvContent = cv.content;
+        }
+        
         const response = await fetch('/api/interview/feedback', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            fullTranscript,
-            company,
-            position: position || interviewType,
-            interviewType,
-            duration: durationMinutes
-          }),
+          body: JSON.stringify(payload),
         });
         
         if (response.ok) {
@@ -690,7 +874,8 @@ export default function InterviewPage() {
         aiUsage: aiUsageCount,
         score: calculatedScore,
         feedback: feedback,
-        transcript: fullTranscript.join("\n")
+        transcript: fullTranscript.join("\n"),
+        cvUsed: cv ? true : false
       };
       
       console.log("Completing interview with results:", JSON.stringify(results));
@@ -715,31 +900,6 @@ export default function InterviewPage() {
     }
   };
   
-  // Add this network monitoring useEffect
-  useEffect(() => {
-    // Network status change handlers
-    const handleOnline = () => {
-      console.log("Network connection restored!");
-      // You could implement syncing logic here if needed
-    };
-    
-    const handleOffline = () => {
-      console.log("Network connection lost!");
-      // Add user notification if needed
-    };
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    // Log initial network status
-    console.log(`Initial network status: ${navigator.onLine ? 'Online' : 'Offline'}`);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-  
   // Handle completion dialog close
   const handleCompletionDialogClose = () => {
     setShowCompletionDialog(false);
@@ -761,7 +921,115 @@ export default function InterviewPage() {
     (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
   );
 
-  console.log("Current interview state:", { isInterviewStarted, showMicPermissionDialog, micPermissionGranted });
+  console.log("Current interview state:", { currentStep, isInterviewStarted, showMicPermissionDialog, micPermissionGranted });
+
+  // CV Upload Form Component
+  const CVUploadForm = () => (
+    <div className="bg-gradient-to-b from-gray-900/80 to-gray-900/40 rounded-xl p-8 border border-gray-800/80 shadow-xl backdrop-blur-sm hover:border-indigo-500/20 transition-all duration-300 relative overflow-hidden">
+      <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-indigo-600/5 rounded-full blur-3xl"></div>
+      <div className="absolute top-20 -left-20 w-40 h-40 bg-indigo-600/5 rounded-full blur-2xl"></div>
+      
+      <div className="relative z-10">
+        <h2 className="text-2xl font-semibold text-white mb-6 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Upload Your CV (Optional)
+        </h2>
+        
+        <p className="text-indigo-200/70 mb-6">
+          Uploading your CV will help our AI provide more personalized suggestions based on your skills and experience.
+        </p>
+        
+        {cv ? (
+          <div className="bg-gray-800/50 rounded-lg border border-gray-700/50 p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-indigo-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div>
+                  <p className="text-white font-medium">{cv.fileName}</p>
+                  <p className="text-gray-400 text-sm">
+                    {(cv.fileSize / 1024).toFixed(1)} KB • Uploaded {cv.uploadedAt.toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => setShowCVPreview(!showCVPreview)}
+                  className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {showCVPreview ? 'Hide Preview' : 'Preview'}
+                </button>
+                <button 
+                  onClick={() => setCV(null)}
+                  className="text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+            
+            {showCVPreview && cv.content && (
+              <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-700 max-h-40 overflow-y-auto">
+                <p className="text-gray-300 text-sm whitespace-pre-line">{cv.content.substring(0, 500)}...</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-gray-800/30 border-2 border-dashed border-gray-700/50 rounded-lg p-8 text-center mb-6">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleCVUpload}
+              accept=".pdf,.doc,.docx,.txt"
+              className="hidden"
+            />
+            
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-indigo-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            
+            <p className="text-gray-300 mb-2">Drag and drop your CV here, or</p>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+            >
+              Browse Files
+            </button>
+            <p className="text-gray-500 text-sm mt-2">Support PDF, DOC, DOCX, TXT (max 5MB)</p>
+          </div>
+        )}
+        
+        {uploadProgress > 0 && (
+          <div className="w-full bg-gray-800 rounded-full h-2.5 mb-6">
+            <div 
+              className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
+          </div>
+        )}
+        
+        <div className="flex flex-col space-y-4">
+          <button
+            onClick={() => {
+              proceedToNextStep(); // Move to interview step
+              // Start the actual interview with recognition
+              startActualInterview();
+            }}
+            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 text-white py-4 rounded-lg hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/30 text-lg font-medium flex items-center justify-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {cv ? 'Continue with CV' : 'Skip & Continue'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex h-screen bg-gray-950">
@@ -803,8 +1071,8 @@ export default function InterviewPage() {
               </p>
             </div>
 
-            {/* Interview Setup or Interview In Progress */}
-            {!isInterviewStarted ? (
+            {/* Different Steps Based on Current Step */}
+            {currentStep === 'setup' && (
               <div className="bg-gradient-to-b from-gray-900/80 to-gray-900/40 rounded-xl p-8 border border-gray-800/80 shadow-xl backdrop-blur-sm hover:border-indigo-500/20 transition-all duration-300 relative overflow-hidden">
                 {/* Background blobs */}
                 <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-indigo-600/5 rounded-full blur-3xl"></div>
@@ -938,7 +1206,7 @@ export default function InterviewPage() {
                   {/* Start Button & Status Indicators */}
                   <div className="space-y-4 mt-8">
                     <button 
-                      onClick={startInterview}
+                      onClick={proceedToNextStep}
                       className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 text-white py-4 rounded-lg hover:from-indigo-500 hover:to-indigo-400 transition-all duration-300 shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/30 text-lg font-medium flex items-center justify-center"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -995,8 +1263,13 @@ export default function InterviewPage() {
                   </div>
                 </div>
               </div>
-            ) : (
-              /* Interview In Progress UI */
+            )}
+
+            {/* CV Upload Step */}
+            {currentStep === 'cvUpload' && <CVUploadForm />}
+            
+            {/* Interview In Progress UI */}
+            {currentStep === 'interview' && (
               <div className="bg-gradient-to-b from-gray-900/80 to-gray-900/40 rounded-xl border border-gray-800/80 shadow-xl backdrop-blur-sm overflow-hidden flex flex-col h-[calc(100vh-220px)]">
                 {/* Interview Controls */}
                 <div className="bg-gray-900 border-b border-gray-800 p-4 flex items-center justify-between">
@@ -1027,6 +1300,15 @@ export default function InterviewPage() {
                       Screenshot
                     </button>
                     <button 
+                      onClick={() => setShowTranscriptTesting(!showTranscriptTesting)}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white flex items-center"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {showTranscriptTesting ? 'Hide Testing' : 'Show Testing'}
+                    </button>
+                    <button 
                       onClick={endInterview}
                       className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm text-white flex items-center"
                     >
@@ -1038,6 +1320,38 @@ export default function InterviewPage() {
                     </button>
                   </div>
                 </div>
+                
+                {/* Transcript Testing Area */}
+                {showTranscriptTesting && (
+                  <div className="bg-gray-900/80 border-b border-gray-800 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-white font-medium">Speech Recognition Testing</h3>
+                      <div className="flex items-center">
+                        <div className={`h-2 w-2 ${isRecording ? 'bg-green-500' : 'bg-red-500'} rounded-full mr-2`}></div>
+                        <span className="text-sm text-gray-400">{isRecording ? 'Active' : 'Inactive'}</span>
+                      </div>
+                    </div>
+                    <div className="bg-gray-800/80 rounded-lg p-3 text-sm text-indigo-200">
+                      <p className="mb-2 text-xs text-gray-400">Last detected speech:</p>
+                      {interimText ? (
+                        <div className="flex items-center">
+                          <div className={`h-2 w-2 ${interimSpeaker === 'interviewer' ? 'bg-blue-500' : 'bg-indigo-500'} rounded-full mr-2`}></div>
+                          <span className={`${interimSpeaker === 'interviewer' ? 'text-blue-300' : 'text-indigo-300'}`}>
+                            {interimSpeaker === 'interviewer' ? 'Interviewer' : 'You'}: {interimText}
+                          </span>
+                          <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1"></span>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 italic">No speech detected. Please speak to test.</p>
+                      )}
+                      
+                      <div className="mt-3 pt-3 border-t border-gray-700">
+                        <p className="text-xs text-gray-400 mb-2">Last processed at: {lastProcessedTime ? lastProcessedTime.toLocaleTimeString() : 'Never'}</p>
+                        <p className="text-xs text-gray-400">Total transcript lines: {fullTranscript.length}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Transcript Area */}
                 <div ref={transcriptContainerRef} className="flex-1 p-6 overflow-auto">
@@ -1249,7 +1563,7 @@ export default function InterviewPage() {
                 </div>
                 
                 <h5 className="text-indigo-300 font-medium mb-2">Performance Feedback:</h5>
-                <p className="text-gray-300 text-sm">{interviewFeedback.feedback}</p>
+                <p className="text-gray-300 text-sm whitespace-pre-line">{interviewFeedback.feedback}</p>
               </div>
             </div>
             

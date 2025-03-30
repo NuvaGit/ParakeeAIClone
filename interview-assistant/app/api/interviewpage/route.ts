@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
       company, 
       position, 
       interviewType,
-      contextLines = 5  // Number of recent transcript lines to include
+      contextLines = 5,  // Number of recent transcript lines to include
+      cvContent           // Optional CV content
     } = await request.json();
 
     if (!transcript || !Array.isArray(transcript)) {
@@ -31,15 +32,24 @@ export async function POST(request: NextRequest) {
     // If contextLines is provided, only take the most recent X lines
     const recentContext = transcript.slice(-contextLines).join("\n");
 
+    // Create system prompt
+    let systemPrompt = `You are an AI interview assistant helping the user during a ${interviewType} interview for a ${position} position at ${company || "a company"}. 
+    Provide concise, accurate, and helpful responses to interview questions. Keep answers under 3 sentences when possible.
+    Your goal is to help the user provide impressive answers that showcase their skills and experience.`;
+
+    // Add CV content to system prompt if available
+    if (cvContent) {
+      systemPrompt += `\n\nHere is the user's CV/resume information to help you provide more personalized suggestions:
+      ${cvContent.substring(0, 2000)}`;  // Limit CV content to avoid token limits
+    }
+
     // Generate response
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are an AI interview assistant helping the user during a ${interviewType} interview for a ${position} position at ${company || "a company"}. 
-          Provide concise, accurate, and helpful responses to interview questions. Keep answers under 3 sentences when possible.
-          Your goal is to help the user provide impressive answers that showcase their skills and experience.`
+          content: systemPrompt
         },
         {
           role: "user",
@@ -74,7 +84,8 @@ export async function PUT(request: NextRequest) {
       screenshotData, 
       company, 
       position, 
-      interviewType 
+      interviewType,
+      cvContent  // Optional CV content 
     } = await request.json();
 
     if (!screenshotData) {
@@ -84,14 +95,23 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Create system prompt
+    let systemPrompt = `You are an AI interview assistant helping the user during a ${interviewType} interview for a ${position} position at ${company || "a company"}. 
+    Analyze the screenshot of the interview and provide helpful suggestions or answers.`;
+
+    // Add CV content to system prompt if available
+    if (cvContent) {
+      systemPrompt += `\n\nHere is the user's CV/resume information to help you provide more personalized suggestions:
+      ${cvContent.substring(0, 2000)}`;  // Limit CV content to avoid token limits
+    }
+
     // Generate response based on screenshot
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are an AI interview assistant helping the user during a ${interviewType} interview for a ${position} position at ${company || "a company"}. 
-          Analyze the screenshot of the interview and provide helpful suggestions or answers.`
+          content: systemPrompt
         },
         {
           role: "user",
