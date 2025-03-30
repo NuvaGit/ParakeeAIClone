@@ -33,7 +33,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log("Setting up auth state listener");
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log("Auth state changed:", user ? `User ${user.uid} logged in` : "No user");
       setUser(user);
       setLoading(false);
     });
@@ -42,24 +44,62 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signUp = async (email: string, password: string): Promise<UserCredential> => {
-    return createUserWithEmailAndPassword(auth, email, password);
+    console.log(`Attempting to sign up user with email: ${email}`);
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      console.log("Sign up successful:", result.user.uid);
+      return result;
+    } catch (error) {
+      console.error("Sign up error:", error);
+      throw error;
+    }
   };
 
   const signIn = async (email: string, password: string): Promise<UserCredential> => {
-    return signInWithEmailAndPassword(auth, email, password);
+    console.log(`Attempting to sign in user with email: ${email}`);
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      console.log("Sign in successful:", result.user.uid);
+      return result;
+    } catch (error) {
+      console.error("Sign in error:", error);
+      throw error;
+    }
   };
 
   const signInWithGoogle = async (): Promise<UserCredential> => {
+    console.log("Attempting to sign in with Google");
     const provider = new GoogleAuthProvider();
-    return signInWithPopup(auth, provider);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      console.log("Google sign in successful:", result.user.uid);
+      return result;
+    } catch (error) {
+      console.error("Google sign in error:", error);
+      throw error;
+    }
   };
 
   const logout = async () => {
-    await signOut(auth);
+    console.log("Logging out user");
+    try {
+      await signOut(auth);
+      console.log("User logged out successfully");
+    } catch (error) {
+      console.error("Logout error:", error);
+      throw error;
+    }
   };
 
   const resetPassword = async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
+    console.log(`Sending password reset email to: ${email}`);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      console.log("Password reset email sent successfully");
+    } catch (error) {
+      console.error("Password reset error:", error);
+      throw error;
+    }
   };
 
   const value = {

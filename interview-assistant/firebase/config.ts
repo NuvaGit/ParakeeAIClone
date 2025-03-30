@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
 // 🔹 Firebase Config from Environment Variables
@@ -20,21 +20,20 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const functions = getFunctions(app);
 
-// 🔹 Firestore Setup with Persistence
-let db: Firestore;
+// 🔹 Firestore Setup with simplified persistence approach
+const db = getFirestore(app);
+
+// Enable persistence only in browser environment with proper error handling
 if (typeof window !== "undefined") {
-  try {
-    db = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
+  enableIndexedDbPersistence(db)
+    .catch((err) => {
+      console.error("Firestore persistence error:", err);
+      if (err.code === 'failed-precondition') {
+        console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+      } else if (err.code === 'unimplemented') {
+        console.warn('The current browser does not support persistence.');
+      }
     });
-  } catch (error) {
-    console.error("Firestore Initialization Error:", error);
-    db = getFirestore(app);
-  }
-} else {
-  db = getFirestore(app);
 }
 
 // 🔹 Export Firebase Services

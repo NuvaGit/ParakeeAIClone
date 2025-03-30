@@ -492,76 +492,80 @@ export default function InterviewPage() {
       setShowMicPermissionDialog(false);
       return;
     }
-    
+  
     try {
       console.log("Continue button clicked - proceeding with interview start");
-      
-      // If we have an active stream, stop it now as SpeechRecognition will use the mic
+  
+      // Ensure mic stream is stopped before starting
       if (micStream) {
+        console.log("Stopping existing microphone stream");
         micStream.getTracks().forEach(track => track.stop());
         setMicStream(null);
       }
+  
+      // Validate interview data
+      const interviewData = {
+        company: company || "Practice Interview",
+        position: position || interviewType,
+        interviewType
+      };
+  
+      console.log("Creating interview session with data:", interviewData);
       
-      console.log("Creating interview session...");
-      // Create a new interview session in Firestore - wrap in try/catch for better error handling
       let interviewId;
       try {
-        interviewId = await createInterviewSession(user.uid, {
-          company: company || "Practice Interview",
-          position: position || interviewType,
-          interviewType
-        });
+        interviewId = await createInterviewSession(user.uid, interviewData);
         console.log("Interview session created with ID:", interviewId);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error creating interview session:", error);
-        alert("Failed to create interview session. Please try again.");
+        alert(`Failed to create interview session: ${error?.message ?? 'Unknown error'}. Please try again.`);
         setShowMicPermissionDialog(false);
         return;
       }
-      
+  
       setCurrentInterviewId(interviewId);
       setFullTranscript([]);
       setAiUsageCount(0);
       setInterviewStartTime(new Date());
-      
-      // Start recording - do this before state changes to ensure proper setup
+  
       console.log("Attempting to start speech recognition...");
-      
-      // Force refresh the recognition instances before starting
-      const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
-      recognitionRef.current = userRecognition;
-      interviewerRecognitionRef.current = interviewerRecognition;
-      
+  
+      // Ensure speech recognition instances are properly set up
+      try {
+        const { userRecognition, interviewerRecognition } = setupSpeechRecognition();
+        recognitionRef.current = userRecognition;
+        interviewerRecognitionRef.current = interviewerRecognition;
+      } catch (error: any) {
+        console.error("Error setting up speech recognition:", error);
+        alert("Failed to initialize speech recognition. Please try again.");
+        setShowMicPermissionDialog(false);
+        return;
+      }
+  
+      // Start recording
       const recordingStarted = startRecording();
-      
+  
       if (recordingStarted) {
-        console.log("Recording started successfully - changing UI state");
-        // Change UI state AFTER successful recording start
+        console.log("Recording started successfully - updating UI state");
         setIsInterviewStarted(true);
         setShowMicPermissionDialog(false);
         setMicPermissionGranted(false); // Reset for next time
-        
-        // Add initial system message to transcript
+  
         addToTranscript(`System: Interview started for ${position || interviewType} at ${company || "Practice Interview"}`);
-        
-        // Force a re-render if needed
-        setTimeout(() => {
-          console.log("Interview started state:", isInterviewStarted);
-        }, 100);
       } else {
-        // Handle case where recording couldn't start
         console.error("Failed to start recording even with permissions granted");
-        setShowMicPermissionDialog(false);
-        setMicPermissionGranted(false); // Reset for next time
         alert("Failed to start recording. Please check your microphone settings and try again.");
+        setShowMicPermissionDialog(false);
+        setMicPermissionGranted(false);
       }
-    } catch (error) {
-      console.error("Error continuing after permission:", error);
+    } catch (error: any) {
+      console.error("Unexpected error in handleContinueAfterPermission:", error);
+      alert(`Error starting interview: ${error?.message ?? 'Unknown error'}. Please try again.`);
       setShowMicPermissionDialog(false);
-      setMicPermissionGranted(false); // Reset for next time
-      alert("Error starting interview. Please try again.");
+      setMicPermissionGranted(false);
     }
   };
+  
   
   // Start the interview
   const startInterview = async () => {
@@ -582,7 +586,12 @@ export default function InterviewPage() {
     }
     
     try {
+      console.log("Starting interview process...");
       setShowMicPermissionDialog(true);
+      
+      // Check connection status
+      const isOnline = navigator.onLine;
+      console.log(`Network status: ${isOnline ? 'Online' : 'Offline'}`);
       
       // Modified approach: First request permission but wait for user to click continue
       try {
@@ -593,8 +602,6 @@ export default function InterviewPage() {
         // If we get here, permission was granted
         console.log("Microphone permission granted");
         
-        // Instead of proceeding automatically, update dialog to show Continue button
-        // We'll keep the stream active until the user clicks Continue
         setMicPermissionGranted(true);
         setMicStream(stream);
         
@@ -605,7 +612,6 @@ export default function InterviewPage() {
         alert("Microphone access was denied. Please allow microphone access in your browser settings and try again.");
         return;
       }
-      
     } catch (error) {
       console.error("Error starting interview:", error);
       setShowMicPermissionDialog(false);
@@ -637,6 +643,7 @@ export default function InterviewPage() {
       let calculatedScore = 75; // Default score
       
       try {
+        console.log("Requesting interview feedback...");
         const response = await fetch('/api/interview/feedback', {
           method: 'POST',
           headers: {
@@ -655,6 +662,8 @@ export default function InterviewPage() {
           const data = await response.json();
           feedback = data.feedback || feedback;
           calculatedScore = data.score || calculatedScore;
+          console.log("Received feedback:", feedback);
+          console.log("Calculated score:", calculatedScore);
         }
       } catch (error) {
         console.error("Error generating interview feedback:", error);
@@ -665,14 +674,26 @@ export default function InterviewPage() {
         feedback: feedback
       });
       
-      // Update the interview session with final details
-      await completeInterviewSession(currentInterviewId, {
+      // Prepare results with proper validation
+      const results = {
         duration: `${durationMinutes} minutes`,
         aiUsage: aiUsageCount,
         score: calculatedScore,
         feedback: feedback,
         transcript: fullTranscript.join("\n")
-      });
+      };
+      
+      console.log("Completing interview with results:", JSON.stringify(results));
+      
+      // Update the interview session with final details
+      try {
+        await completeInterviewSession(currentInterviewId, results);
+        console.log("Interview completed successfully");
+      } catch (error) {
+        console.error("Error completing interview:", error);
+        // Continue to show completion dialog even if save fails
+        alert("Warning: There was an issue saving your complete results, but the interview was recorded.");
+      }
       
       setShowEndInterviewDialog(false);
       setShowCompletionDialog(true);
@@ -683,6 +704,31 @@ export default function InterviewPage() {
       alert("Error saving interview results. Please try again.");
     }
   };
+  
+  // Add this network monitoring useEffect
+  useEffect(() => {
+    // Network status change handlers
+    const handleOnline = () => {
+      console.log("Network connection restored!");
+      // You could implement syncing logic here if needed
+    };
+    
+    const handleOffline = () => {
+      console.log("Network connection lost!");
+      // Add user notification if needed
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Log initial network status
+    console.log(`Initial network status: ${navigator.onLine ? 'Online' : 'Offline'}`);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   // Handle completion dialog close
   const handleCompletionDialogClose = () => {

@@ -13,7 +13,8 @@ import {
   Timestamp, 
   FieldValue,
   FirestoreError,
-  Firestore // Import Firestore type
+  Firestore,
+  writeBatch
 } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
 
@@ -35,7 +36,7 @@ export interface InterviewData {
   company: string;
   position: string;
   interviewType?: InterviewType;
-  date: Timestamp | Date | FieldValue;  // Updated to include FieldValue type
+  date: Timestamp | Date | FieldValue;
   status: 'in-progress' | 'completed';
   duration?: string;
   aiUsage?: number;
@@ -56,21 +57,60 @@ export interface CreateInterviewData {
 }
 
 /**
+ * Helper function to get error message from unknown error
+ */
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+/**
  * Helper function to detect offline errors
  */
-function isOfflineError(error: any): boolean {
-  return (
-    (error instanceof FirebaseError && 
-     (error.code === 'unavailable' || 
-      error.code === 'failed-precondition')) ||
-    (error instanceof FirestoreError && 
-     (error.code === 'unavailable' || 
-      error.code === 'failed-precondition')) ||
-    (error.message && 
-     typeof error.message === 'string' && 
-     (error.message.includes('offline') || 
-      error.message.includes('network')))
-  );
+function isOfflineError(error: unknown): boolean {
+  if (error instanceof FirebaseError) {
+    return error.code === 'unavailable' || error.code === 'failed-precondition';
+  }
+  
+  if (error instanceof FirestoreError) {
+    return error.code === 'unavailable' || error.code === 'failed-precondition';
+  }
+  
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const errorMsg = (error as { message: unknown }).message;
+    if (typeof errorMsg === 'string') {
+      return errorMsg.includes('offline') || errorMsg.includes('network');
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Helper to sanitize data before sending to Firestore
+ */
+function sanitizeData(data: any): any {
+  if (data === null || data === undefined) {
+    return null;
+  }
+  
+  if (typeof data !== 'object') {
+    return data;
+  }
+  
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeData(item));
+  }
+  
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    // Skip undefined values as Firestore doesn't support them
+    if (value !== undefined) {
+      result[key] = sanitizeData(value);
+    }
+  }
+  
+  return result;
 }
 
 /**
@@ -80,38 +120,49 @@ export async function createInterviewSession(userId: string, data: CreateIntervi
   let retryCount = 0;
   const MAX_RETRIES = 3;
   
+  console.log("Creating interview session for user:", userId);
+  console.log("Interview data:", JSON.stringify(data));
+  
+  // Validate required fields
+  if (!userId || userId.trim() === '') {
+    console.error("Invalid userId provided");
+    throw new Error('userId is required');
+  }
+  
   while (retryCount < MAX_RETRIES) {
     try {
-      // Check network connectivity before attempting
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        throw new Error('Cannot create interview session while offline');
-      }
-      
-      // Create new interview document with explicit Timestamp
-      // Using Timestamp.now() instead of serverTimestamp for better offline behavior
-      const interviewData: InterviewData = {
+      // Create sanitized interview data
+      const interviewData: InterviewData = sanitizeData({
         userId,
-        company: data.company,
-        position: data.position,
+        company: data.company || "Practice Interview",
+        position: data.position || "General Interview",
         interviewType: data.interviewType || 'General Interview',
         date: Timestamp.now(),
         status: 'in-progress',
         questions: []
-      };
+      });
       
-      console.log("Creating interview session in Firestore...");
-      const docRef = await addDoc(collection(firestore, 'interviews'), interviewData);
-      console.log("Interview session created with ID:", docRef.id);
-      return docRef.id;
-    } catch (error) {
+      console.log("Sanitized interview data:", JSON.stringify(interviewData));
+      
+      // Use a batch write for better atomicity
+      const batch = writeBatch(firestore);
+      const interviewsRef = collection(firestore, 'interviews');
+      const newDocRef = doc(interviewsRef);
+      
+      batch.set(newDocRef, interviewData);
+      
+      console.log("Committing batch with new interview document...");
+      await batch.commit();
+      
+      console.log("Interview session created successfully with ID:", newDocRef.id);
+      return newDocRef.id;
+    } catch (error: unknown) {
       retryCount++;
       console.error(`Error creating interview session (attempt ${retryCount}/${MAX_RETRIES}):`, error);
       
       if (retryCount >= MAX_RETRIES) {
-        if (isOfflineError(error)) {
-          throw new Error('Failed to create interview session because you are offline. Please check your internet connection and try again.');
-        }
-        throw error;
+        console.error("Max retries reached. Final error:", error);
+        throw new Error(`Failed to create interview session: ${getErrorMessage(error)}`);
       }
       
       // Wait before retrying
@@ -127,6 +178,11 @@ export async function createInterviewSession(userId: string, data: CreateIntervi
  */
 export async function addInterviewQuestion(interviewId: string, question: InterviewQuestion): Promise<void> {
   try {
+    console.log(`Adding question to interview ${interviewId}:`, JSON.stringify(question));
+    
+    // Sanitize question data first
+    const sanitizedQuestion = sanitizeData(question);
+    
     const interviewRef = doc(firestore, 'interviews', interviewId);
     const interviewSnapshot = await getDoc(interviewRef);
     
@@ -137,32 +193,18 @@ export async function addInterviewQuestion(interviewId: string, question: Interv
     const interviewData = interviewSnapshot.data() as InterviewData;
     const questions = interviewData.questions || [];
     
-    // Add the new question
-    await updateDoc(interviewRef, {
-      questions: [...questions, question],
-      updatedAt: Timestamp.now() // Add timestamp for when it was updated
+    // Use a batch write for robustness
+    const batch = writeBatch(firestore);
+    
+    batch.update(interviewRef, {
+      questions: [...questions, sanitizedQuestion],
+      updatedAt: Timestamp.now()
     });
-  } catch (error) {
+    
+    await batch.commit();
+    console.log("Question added successfully");
+  } catch (error: unknown) {
     console.error('Error adding interview question:', error);
-    
-    // If it's an offline error, store in localStorage as backup and continue
-    if (isOfflineError(error) && typeof localStorage !== 'undefined') {
-      console.warn('Unable to save question due to network issues - saving locally');
-      try {
-        const key = `interview_question_backup_${interviewId}`;
-        const existingData = localStorage.getItem(key);
-        const backupQuestions = existingData ? JSON.parse(existingData) : [];
-        backupQuestions.push({
-          ...question,
-          timestamp: new Date().toISOString()
-        });
-        localStorage.setItem(key, JSON.stringify(backupQuestions));
-        return; // Continue without throwing
-      } catch (storageError) {
-        console.error("Failed to backup to localStorage:", storageError);
-      }
-    }
-    
     throw error;
   }
 }
@@ -183,44 +225,37 @@ export async function completeInterviewSession(
   let retryCount = 0;
   const MAX_RETRIES = 3;
   
+  console.log(`Completing interview ${interviewId} with results:`, JSON.stringify(results));
+  
+  // Sanitize results first
+  const sanitizedResults = sanitizeData({
+    status: 'completed',
+    duration: results.duration,
+    aiUsage: results.aiUsage,
+    score: results.score,
+    feedback: results.feedback,
+    transcript: results.transcript,
+    completedAt: Timestamp.now()
+  });
+  
   while (retryCount < MAX_RETRIES) {
     try {
       const interviewRef = doc(firestore, 'interviews', interviewId);
       
-      await updateDoc(interviewRef, {
-        status: 'completed',
-        duration: results.duration,
-        aiUsage: results.aiUsage,
-        score: results.score,
-        feedback: results.feedback,
-        transcript: results.transcript,
-        completedAt: Timestamp.now() // Add explicit timestamp for completion time
-      });
+      // Use a batch for atomic update
+      const batch = writeBatch(firestore);
+      batch.update(interviewRef, sanitizedResults);
       
+      await batch.commit();
       console.log("Interview completed successfully");
       return;
-    } catch (error) {
+    } catch (error: unknown) {
       retryCount++;
       console.error(`Error completing interview (attempt ${retryCount}/${MAX_RETRIES}):`, error);
       
       if (retryCount >= MAX_RETRIES) {
-        if (isOfflineError(error) && typeof localStorage !== 'undefined') {
-          // Store in localStorage for later synchronization
-          console.warn('Unable to save to Firebase - saving to local storage');
-          try {
-            localStorage.setItem(`interview_backup_${interviewId}`, JSON.stringify({
-              interviewId,
-              results,
-              timestamp: new Date().toISOString()
-            }));
-            console.log("Interview results backed up locally");
-            return; // Continue without throwing
-          } catch (storageError) {
-            console.error("Failed to backup to localStorage:", storageError);
-          }
-        }
-        
-        throw error;
+        console.error("Max retries reached. Final error:", error);
+        throw new Error(`Failed to complete interview: ${getErrorMessage(error)}`);
       }
       
       // Wait before retrying
@@ -234,6 +269,8 @@ export async function completeInterviewSession(
  */
 export async function getUserInterviews(userId: string): Promise<Interview[]> {
   try {
+    console.log(`Getting interviews for user ${userId}`);
+    
     const interviewsQuery = query(
       collection(firestore, 'interviews'),
       where('userId', '==', userId),
@@ -241,54 +278,14 @@ export async function getUserInterviews(userId: string): Promise<Interview[]> {
     );
     
     const querySnapshot = await getDocs(interviewsQuery);
+    console.log(`Found ${querySnapshot.docs.length} interviews`);
     
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Interview[];
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error getting user interviews:', error);
-    
-    // If offline, try to retrieve any locally backed up interviews
-    if (isOfflineError(error) && typeof localStorage !== 'undefined') {
-      console.log('Attempting to retrieve backup interviews from local storage');
-      const backupInterviews: Interview[] = [];
-      
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key?.startsWith('interview_backup_')) {
-            const data = localStorage.getItem(key);
-            if (data) {
-              try {
-                const backup = JSON.parse(data);
-                if (backup.interviewId) {
-                  backupInterviews.push({
-                    id: backup.interviewId,
-                    userId,
-                    company: backup.results?.company || 'Offline Backup',
-                    position: backup.results?.position || 'Unavailable',
-                    date: new Date(backup.timestamp),
-                    status: 'completed',
-                    ...backup.results
-                  } as Interview);
-                }
-              } catch (parseError) {
-                console.error('Error parsing backup:', parseError);
-              }
-            }
-          }
-        }
-        
-        if (backupInterviews.length > 0) {
-          console.log(`Retrieved ${backupInterviews.length} backup interviews`);
-          return backupInterviews;
-        }
-      } catch (localStorageError) {
-        console.error('Error accessing localStorage:', localStorageError);
-      }
-    }
-    
     throw error;
   }
 }
@@ -298,63 +295,23 @@ export async function getUserInterviews(userId: string): Promise<Interview[]> {
  */
 export async function getInterviewById(interviewId: string): Promise<Interview | null> {
   try {
+    console.log(`Getting interview by ID: ${interviewId}`);
+    
     const interviewRef = doc(firestore, 'interviews', interviewId);
     const docSnapshot = await getDoc(interviewRef);
     
     if (!docSnapshot.exists()) {
-      // Before returning null, check localStorage for backup
-      if (typeof localStorage !== 'undefined') {
-        const backup = localStorage.getItem(`interview_backup_${interviewId}`);
-        if (backup) {
-          try {
-            const data = JSON.parse(backup);
-            console.log('Found backed-up interview in localStorage');
-            return {
-              id: interviewId,
-              userId: 'unknown', // We don't know the userId from backup
-              company: data.results?.company || 'Offline Backup',
-              position: data.results?.position || 'Unavailable',
-              date: new Date(data.timestamp),
-              status: 'completed',
-              ...data.results
-            } as Interview;
-          } catch (parseError) {
-            console.error('Error parsing backup:', parseError);
-          }
-        }
-      }
-      
+      console.log(`Interview ${interviewId} not found`);
       return null;
     }
     
+    console.log(`Interview ${interviewId} found, returning data`);
     return {
       id: docSnapshot.id,
       ...docSnapshot.data()
     } as Interview;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error getting interview by ID:', error);
-    
-    // Check localStorage if offline
-    if (isOfflineError(error) && typeof localStorage !== 'undefined') {
-      const backup = localStorage.getItem(`interview_backup_${interviewId}`);
-      if (backup) {
-        try {
-          const data = JSON.parse(backup);
-          return {
-            id: interviewId,
-            userId: 'unknown',
-            company: data.results?.company || 'Offline Backup',
-            position: data.results?.position || 'Unavailable',
-            date: new Date(data.timestamp),
-            status: 'completed',
-            ...data.results
-          } as Interview;
-        } catch (parseError) {
-          console.error('Error parsing backup:', parseError);
-        }
-      }
-    }
-    
     throw error;
   }
 }
@@ -364,6 +321,8 @@ export async function getInterviewById(interviewId: string): Promise<Interview |
  */
 export async function getUserAverageScore(userId: string): Promise<number> {
   try {
+    console.log(`Calculating average score for user ${userId}`);
+    
     const interviewsQuery = query(
       collection(firestore, 'interviews'),
       where('userId', '==', userId),
@@ -373,6 +332,7 @@ export async function getUserAverageScore(userId: string): Promise<number> {
     const querySnapshot = await getDocs(interviewsQuery);
     
     if (querySnapshot.empty) {
+      console.log('No completed interviews found');
       return 0;
     }
     
@@ -387,8 +347,10 @@ export async function getUserAverageScore(userId: string): Promise<number> {
       }
     });
     
-    return count > 0 ? Math.round(totalScore / count) : 0;
-  } catch (error) {
+    const average = count > 0 ? Math.round(totalScore / count) : 0;
+    console.log(`Average score: ${average} from ${count} interviews`);
+    return average;
+  } catch (error: unknown) {
     console.error('Error calculating average score:', error);
     return 0;
   }
@@ -399,6 +361,8 @@ export async function getUserAverageScore(userId: string): Promise<number> {
  */
 export async function getCommonQuestions(userId: string): Promise<string[]> {
   try {
+    console.log(`Getting common questions for user ${userId}`);
+    
     const interviewsQuery = query(
       collection(firestore, 'interviews'),
       where('userId', '==', userId),
@@ -408,6 +372,7 @@ export async function getCommonQuestions(userId: string): Promise<string[]> {
     const querySnapshot = await getDocs(interviewsQuery);
     
     if (querySnapshot.empty) {
+      console.log('No completed interviews found');
       return [];
     }
     
@@ -431,11 +396,14 @@ export async function getCommonQuestions(userId: string): Promise<string[]> {
     });
     
     // Convert to array, sort by frequency, and take top 5
-    return Array.from(questionCounts.entries())
+    const commonQuestions = Array.from(questionCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(entry => entry[0]);
-  } catch (error) {
+      
+    console.log(`Found ${commonQuestions.length} common questions`);
+    return commonQuestions;
+  } catch (error: unknown) {
     console.error('Error getting common questions:', error);
     return [];
   }
