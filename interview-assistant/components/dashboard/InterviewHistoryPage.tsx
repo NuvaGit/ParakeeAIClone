@@ -9,6 +9,7 @@ import {
   getCommonQuestions,
   Interview
 } from '@/firebase/interviews';
+import { deleteDocument } from '@/firebase/firestore';
 import Sidebar from "@/components/dashboard/Sidebar";
 
 export default function InterviewHistoryPage() {
@@ -19,6 +20,7 @@ export default function InterviewHistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [averageScore, setAverageScore] = useState(0);
   const [commonQuestions, setCommonQuestions] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInterviews = async () => {
@@ -51,6 +53,33 @@ export default function InterviewHistoryPage() {
     
     fetchInterviews();
   }, [user]);
+
+  const handleDeleteInterview = async (interviewId: string) => {
+    if (!user) return;
+    
+    setIsDeleting(interviewId);
+    
+    try {
+      // Delete the interview document from Firestore using your helper function
+      await deleteDocument('interviews', interviewId);
+      
+      // Update local state after successful deletion
+      setInterviewHistory(prev => prev.filter(interview => interview.id !== interviewId));
+      
+      // Recalculate average score after deletion
+      const remainingInterviews = interviewHistory.filter(interview => interview.id !== interviewId);
+      if (remainingInterviews.length > 0) {
+        const newAvgScore = remainingInterviews.reduce((sum, interview) => sum + (interview.score || 0), 0) / remainingInterviews.length;
+        setAverageScore(Math.round(newAvgScore));
+      } else {
+        setAverageScore(0);
+      }
+    } catch (error) {
+      console.error("Error deleting interview:", error);
+    } finally {
+      setIsDeleting(null);
+    }
+  };
 
   const filteredInterviews = interviewHistory.filter(interview => {
     // Apply search filter
@@ -91,9 +120,9 @@ export default function InterviewHistoryPage() {
       <Sidebar />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-y-auto bg-gradient-to-b from-gray-900 to-gray-950">
-        <main className="flex-1 p-6 md:p-8">
-          <div className="mb-8">
+      <div className="flex-1 flex flex-col bg-gradient-to-b from-gray-900 to-gray-950">
+        <main className="flex-1 p-6 md:p-8 flex flex-col max-h-screen">
+          <div className="mb-6">
             <h1 className="animate-[gradient_6s_linear_infinite] bg-[linear-gradient(to_right,var(--color-gray-200),var(--color-indigo-200),var(--color-gray-50),var(--color-indigo-300),var(--color-gray-200))] bg-[length:200%_auto] bg-clip-text font-nacelle text-3xl font-semibold text-transparent md:text-4xl">
               Interview History
             </h1>
@@ -107,9 +136,9 @@ export default function InterviewHistoryPage() {
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-t-2 border-indigo-500 border-t-transparent"></div>
             </div>
           ) : interviewHistory.length > 0 ? (
-            <>
+            <div className="flex flex-col flex-1">
               {/* Filter Controls */}
-              <div className="mb-6 flex flex-col md:flex-row gap-4 justify-between">
+              <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between">
                 <div className="relative md:w-64">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                     <svg className="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
@@ -137,39 +166,39 @@ export default function InterviewHistoryPage() {
               </div>
 
               {/* Interview Table */}
-              <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden shadow-lg shadow-gray-950/50 backdrop-blur-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
+              <div className="bg-gray-900/50 rounded-lg border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm flex-1 flex flex-col min-h-0">
+                <div className="overflow-auto">
+                  <table className="w-full table-fixed">
+                    <thead className="sticky top-0 z-10">
                       <tr className="bg-gray-800/70">
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Company</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Position</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Duration</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">AI Assists</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Score</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-24">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-32">Company</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-32">Position</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-24">Duration</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-24">AI Assists</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-24">Score</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-36">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800">
                       {filteredInterviews.length > 0 ? (
                         filteredInterviews.map((interview) => (
                           <tr key={interview.id} className="hover:bg-gray-800/30 transition-colors duration-150">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
                               {formatDate(interview.date)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
                               <span className="bg-indigo-900/30 text-indigo-300 px-2 py-1 rounded-full text-xs font-medium">
                                 {interview.company || 'Unknown'}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
                               {interview.position || 'Unknown'}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
                               {interview.duration || 'N/A'}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
                               <div className="inline-flex items-center bg-indigo-900/20 px-2 py-1 rounded-full">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-400 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -177,9 +206,9 @@ export default function InterviewHistoryPage() {
                                 <span>{interview.aiUsage || 0} assists</span>
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center">
-                                <div className="h-2 w-20 bg-gray-700 rounded-full overflow-hidden">
+                                <div className="h-2 w-16 bg-gray-700 rounded-full overflow-hidden">
                                   <div
                                     className={`h-2 rounded-full ${
                                       (interview.score || 0) >= 90 ? 'bg-green-500' : 
@@ -189,30 +218,44 @@ export default function InterviewHistoryPage() {
                                     style={{ width: `${interview.score || 0}%` }}
                                   ></div>
                                 </div>
-                                <span className={`ml-3 text-sm font-medium ${
+                                <span className={`ml-2 text-sm font-medium ${
                                   (interview.score || 0) >= 90 ? 'text-green-400' : 
                                   (interview.score || 0) >= 70 ? 'text-blue-400' : 
                                   'text-yellow-500'
                                 }`}>{interview.score || 0}%</span>
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              <Link 
-                                href={`/dashboard/history/${interview.id}`}
-                                className="inline-flex items-center justify-center px-3 py-1.5 bg-indigo-600/20 text-indigo-300 text-xs font-medium rounded-md hover:bg-indigo-600/30 transition-colors duration-150"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                                View Details
-                              </Link>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              <div className="flex items-center space-x-2">
+                                <Link 
+                                  href={`/dashboard/history/${interview.id}`}
+                                  className="inline-flex items-center justify-center px-2 py-1.5 bg-indigo-600/20 text-indigo-300 text-xs font-medium rounded-md hover:bg-indigo-600/30 transition-colors duration-150"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                </Link>
+                                <button
+                                  onClick={() => handleDeleteInterview(interview.id)}
+                                  disabled={isDeleting === interview.id}
+                                  className="inline-flex items-center justify-center px-2 py-1.5 bg-red-600/20 text-red-300 text-xs font-medium rounded-md hover:bg-red-600/30 transition-colors duration-150"
+                                >
+                                  {isDeleting === interview.id ? (
+                                    <div className="h-4 w-4 animate-spin rounded-full border border-t-0 border-red-400"></div>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
+                          <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
                             No interviews match your search criteria
                           </td>
                         </tr>
@@ -223,15 +266,15 @@ export default function InterviewHistoryPage() {
               </div>
               
               {/* Performance Insights */}
-              <div className="mt-8">
+              <div className="mt-6 mb-4">
                 <h2 className="text-xl font-semibold text-gray-200 mb-4">Performance Insights</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Overall Score Card */}
-                  <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300">
+                  <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300">
                     <h3 className="text-lg font-medium text-gray-300 mb-3">Overall Score</h3>
                     <div className="flex items-center">
-                      <div className="relative h-32 w-32 mx-auto">
-                        <svg className="h-32 w-32 transform -rotate-90" viewBox="0 0 36 36">
+                      <div className="relative h-28 w-28 mx-auto">
+                        <svg className="h-28 w-28 transform -rotate-90" viewBox="0 0 36 36">
                           <path
                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                             fill="none"
@@ -253,27 +296,27 @@ export default function InterviewHistoryPage() {
                         </div>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-400 text-center mt-4">
+                    <p className="text-sm text-gray-400 text-center mt-2">
                       Your average performance across all interviews
                     </p>
                   </div>
                   
                   {/* Most Recent Card */}
-                  <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300">
+                  <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300">
                     <h3 className="text-lg font-medium text-gray-300 mb-3">Most Recent</h3>
                     {mostRecentInterview ? (
                       <>
-                        <div className="text-center mb-3">
-                          <span className="text-2xl font-bold text-white bg-gradient-to-r from-indigo-400 to-indigo-600 bg-clip-text text-transparent">
+                        <div className="text-center mb-2">
+                          <span className="text-xl font-bold text-white bg-gradient-to-r from-indigo-400 to-indigo-600 bg-clip-text text-transparent">
                             {mostRecentInterview.company || 'Unknown Company'}
                           </span>
                         </div>
                         <div className="bg-gray-800/70 rounded-lg p-3">
-                          <div className="flex justify-between items-center mb-2">
+                          <div className="flex justify-between items-center mb-1">
                             <span className="text-sm text-gray-400">Position:</span>
                             <span className="text-sm text-gray-300">{mostRecentInterview.position || 'N/A'}</span>
                           </div>
-                          <div className="flex justify-between items-center mb-2">
+                          <div className="flex justify-between items-center mb-1">
                             <span className="text-sm text-gray-400">Date:</span>
                             <span className="text-sm text-gray-300">
                               {formatDate(mostRecentInterview.date)}
@@ -290,7 +333,7 @@ export default function InterviewHistoryPage() {
                             </span>
                           </div>
                         </div>
-                        <div className="mt-4 text-center">
+                        <div className="mt-3 text-center">
                           <Link
                             href={`/dashboard/history/${mostRecentInterview.id}`}
                             className="text-sm text-indigo-400 hover:text-indigo-300 inline-flex items-center"
@@ -310,13 +353,13 @@ export default function InterviewHistoryPage() {
                   </div>
                   
                   {/* Common Questions Card */}
-                  <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300">
+                  <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800 shadow-lg shadow-gray-950/50 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300">
                     <h3 className="text-lg font-medium text-gray-300 mb-3">Common Questions</h3>
                     {commonQuestions.length > 0 ? (
-                      <ul className="space-y-2 text-sm text-gray-300">
+                      <ul className="space-y-2 text-sm text-gray-300 max-h-28 overflow-y-auto">
                         {commonQuestions.map((question, index) => (
-                          <li key={index} className="flex items-start p-2 rounded-md hover:bg-gray-800/50 transition-colors duration-150">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <li key={index} className="flex items-start p-1 rounded-md hover:bg-gray-800/50 transition-colors duration-150">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-400 mr-2 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             <span>{question}</span>
@@ -324,12 +367,12 @@ export default function InterviewHistoryPage() {
                         ))}
                       </ul>
                     ) : (
-                      <div className="text-center text-gray-400 py-6">
+                      <div className="text-center text-gray-400 py-3">
                         <p>No common questions found</p>
-                        <p className="text-xs mt-2">Complete more interviews to build a question bank</p>
+                        <p className="text-xs mt-1">Complete more interviews to build a question bank</p>
                       </div>
                     )}
-                    <div className="mt-4 text-center">
+                    <div className="mt-3 text-center">
                       <Link
                         href="/dashboard/interview"
                         className="text-sm text-indigo-400 hover:text-indigo-300 inline-flex items-center"
@@ -343,7 +386,7 @@ export default function InterviewHistoryPage() {
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           ) : (
             // Empty state
             <div className="bg-gray-900/50 rounded-lg p-8 border border-gray-800 text-center shadow-lg shadow-gray-950/50 backdrop-blur-sm">

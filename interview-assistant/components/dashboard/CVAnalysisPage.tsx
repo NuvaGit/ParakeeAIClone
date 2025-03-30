@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/firebase/auth";
 import Sidebar from "@/components/dashboard/Sidebar";
 
 interface AnalysisResults {
