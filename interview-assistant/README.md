@@ -1,1 +1,1 @@
-got cv analysis working but need to introduce admin.ts in firebase to set limits as somone could edit source code and exploit my software
+firebase issues reolved i next need to get this interview thing working 
